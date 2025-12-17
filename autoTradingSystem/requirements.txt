@@ -1,0 +1,40 @@
+# Core Trading Libraries
+ccxt>=4.2.0                    # Cryptocurrency exchange trading library
+pandas>=2.2.0                  # Data analysis and manipulation
+numpy>=1.26.0                  # Numerical computing
+
+# Configuration & Environment
+python-dotenv>=1.0.0           # Environment variable management
+
+# Technical Analysis
+pandas-ta>=0.3.14b             # Technical analysis indicators
+ta-lib>=0.4.28                 # Technical analysis library (optional, requires binary)
+
+# Stock Market APIs
+yfinance>=0.2.36               # Yahoo Finance data
+alpaca-trade-api>=3.1.0        # Alpaca trading API (US stocks)
+
+# Database
+sqlalchemy>=2.0.0              # Database ORM
+psycopg2-binary>=2.9.9         # PostgreSQL adapter (optional)
+
+# Utilities
+requests>=2.31.0               # HTTP library
+python-dateutil>=2.8.2         # Date utilities
+pytz>=2024.1                   # Timezone handling
+
+# Backtesting
+backtrader>=1.9.78.123         # Backtesting framework
+
+# Notifications (optional)
+python-telegram-bot>=20.8      # Telegram notifications
+
+# Logging & Monitoring
+colorlog>=6.8.0                # Colored logging
+schedule>=1.2.0                # Job scheduling
+
+# Development & Testing
+pytest>=8.0.0                  # Testing framework
+pytest-asyncio>=0.23.0         # Async testing
+black>=24.0.0                  # Code formatter
+flake8>=7.0.0                  # Code linter
