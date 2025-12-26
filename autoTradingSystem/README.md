@@ -67,6 +67,19 @@ python debug_api.py
 run_strategy_test.bat
 ```
 
+### 5. 자동 매매 봇 실행 🚀
+
+```bash
+# 트레이딩 봇 실행 (DRY RUN 모드)
+run_bot.bat
+
+# 또는
+python main.py
+```
+
+**설정 수정**: [config/trading_config.py](config/trading_config.py)  
+**자세한 가이드**: [BOT_GUIDE.md](BOT_GUIDE.md)
+
 ## 주요 기능
 
 ### ✅ 완료된 기능
@@ -100,18 +113,21 @@ run_strategy_test.bat
    - 성과 분석 (승률, 수익률, 거래 통계)
    - Buy & Hold 대비 성과 비교
 
-### 🚧 개발 예정
+### ✅ 최근 완료
 
-1. **실시간 트레이딩 시스템**
+1. **실시간 트레이딩 시스템** ([src/trading_bot.py](src/trading_bot.py))
    - 실시간 시장 데이터 모니터링
    - 자동 주문 실행
-   - WebSocket 연결
+   - 포지션 관리
 
-2. **리스크 관리**
+2. **리스크 관리** ([src/risk_manager.py](src/risk_manager.py))
    - 손절매/익절 자동 설정
    - 포지션 사이즈 계산
    - 일일 최대 손실 한도
    - 동시 포지션 수 제한
+   - 트레일링 스탑
+
+### 🚧 개발 예정
 
 3. **고급 전략**
    - 멀티 지표 조합 전략
@@ -207,8 +223,9 @@ class MyStrategy(BaseStrategy):
 ⚠️ **중요 보안 사항**:
 
 1. **Paper Trading 우선**: 실제 자금 투입 전 충분한 테스트
-2. **Testnet 사용**: Binance Testnet API로 안전하게 테스트
-3. **API 키 관리**: `.env` 파일은 절대 Git에 커밋하지 않음
+2. x] 실시간 트레이딩 시스템
+- [x] 리스크 관리 모듈
+- [x] 자동 매매 봇 (DRY RUN 모드): `.env` 파일은 절대 Git에 커밋하지 않음
 4. **권한 제한**: API 키는 최소 권한만 부여 (읽기, 트레이딩만)
 5. **출금 비활성화**: API 키에서 출금 권한 제거
 6. **리스크 관리**: 손절매 설정, 포지션 사이즈 제한
