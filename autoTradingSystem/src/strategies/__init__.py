@@ -12,7 +12,8 @@ from .base_strategy import (
 from .sample_strategies import (
     RSIStrategy,
     MACDStrategy,
-    MovingAverageCrossStrategy
+    MovingAverageCrossStrategy,
+    OBVStrategy
 )
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     'PortfolioManager',
     'RSIStrategy',
     'MACDStrategy',
-    'MovingAverageCrossStrategy'
+    'MovingAverageCrossStrategy',
+    'OBVStrategy'
 ]

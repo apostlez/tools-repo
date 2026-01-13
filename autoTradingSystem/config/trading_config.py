@@ -54,7 +54,8 @@ EXCHANGE_CONFIG = {
 # Trading Pair Configuration
 # ============================================
 TRADING_CONFIG = {
-    'symbol': os.getenv('TRADING_SYMBOL', 'BTC/USDT'),  # 거래 쌍
+#    'symbol': os.getenv('TRADING_SYMBOL', 'BTC/USDT'),  # 거래 쌍
+    'symbol': os.getenv('TRADING_SYMBOL', 'XRP/USDT'),  # 거래 쌍
     'timeframe': os.getenv('TRADING_TIMEFRAME', '15m'),  # 시간 프레임 (1m, 5m, 15m, 1h, 4h, 1d)
     'update_interval': get_env_int('UPDATE_INTERVAL', 60),  # 업데이트 주기 (초)
     'initial_balance': get_env_float('INITIAL_BALANCE', 10000),  # 초기 자본 (USDT) - dry_run 모드에서만 사용
@@ -65,7 +66,7 @@ TRADING_CONFIG = {
 # Strategy Configuration
 # ============================================
 STRATEGY_CONFIG = {
-    'name': os.getenv('STRATEGY_NAME', 'RSIStrategy'),  # 'RSIStrategy', 'MACDStrategy', 'MovingAverageCrossStrategy'
+    'name': os.getenv('STRATEGY_NAME', 'OBVStrategy'),  # 'RSIStrategy', 'MACDStrategy', 'MovingAverageCrossStrategy', 'OBVStrategy'
     
     # RSI Strategy Parameters
     'rsi': {
@@ -85,6 +86,12 @@ STRATEGY_CONFIG = {
     'ma_cross': {
         'fast_period': get_env_int('MA_FAST_PERIOD', 20),
         'slow_period': get_env_int('MA_SLOW_PERIOD', 50)
+    },
+    
+    # OBV Strategy Parameters
+    'obv': {
+        'obv_ma_period': get_env_int('OBV_MA_PERIOD', 20), #  캔들 갯수의 이동평균 기간
+        'divergence_lookback': get_env_int('OBV_DIVERGENCE_LOOKBACK', 5) # 다이버전스 확인용 과거 캔들 수
     }
 }
 

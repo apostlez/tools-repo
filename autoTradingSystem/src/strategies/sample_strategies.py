@@ -244,3 +244,97 @@ class MovingAverageCrossStrategy(BaseStrategy):
         
         self.add_signal(signal)
         return signal
+
+
+class OBVStrategy(BaseStrategy):
+    """
+    OBV (On-Balance Volume) 기반 매매 전략
+    
+    전략 로직:
+    - 가격 상승 + OBV 상승 (확인된 상승 트렌드) → 매수 시그널
+    - 가격 하락 + OBV 하락 (확인된 하락 트렌드) → 매도 시그널
+    - OBV와 가격의 다이버전스 감지
+    """
+    
+    def __init__(self, obv_ma_period: int = 20, divergence_lookback: int = 5):
+        """
+        Args:
+            obv_ma_period: OBV 이동평균 기간 (기본값: 20)
+            divergence_lookback: 다이버전스 감지 기간 (기본값: 5)
+        """
+        super().__init__(
+            name="OBV Strategy",
+            parameters={
+                'obv_ma_period': obv_ma_period,
+                'divergence_lookback': divergence_lookback
+            }
+        )
+    
+    def get_required_indicators(self):
+        """필요한 지표 목록"""
+        return ['obv']
+    
+    def analyze(self, df: pd.DataFrame, symbol: str) -> Signal:
+        """OBV 분석"""
+        if not self.validate_data(df):
+            return Signal(SignalType.HOLD, df['close'].iloc[-1], datetime.now(), symbol, 0.0, "Invalid data")
+        
+        obv_ma_period = self.get_parameter('obv_ma_period')
+        divergence_lookback = self.get_parameter('divergence_lookback')
+        
+        # OBV 이동평균 계산
+        df['obv_ma'] = df['obv'].rolling(window=obv_ma_period).mean()
+        
+        current_price = df['close'].iloc[-1]
+        current_obv = df['obv'].iloc[-1]
+        current_obv_ma = df['obv_ma'].iloc[-1]
+        previous_obv_ma = df['obv_ma'].iloc[-2]
+        
+        # 최근 가격 및 OBV 변화 추세
+        price_change = df['close'].iloc[-1] - df['close'].iloc[-divergence_lookback]
+        obv_change = df['obv'].iloc[-1] - df['obv'].iloc[-divergence_lookback]
+        
+        # 시그널 판단
+        if pd.isna(current_obv) or pd.isna(current_obv_ma):
+            signal_type = SignalType.HOLD
+            strength = 0.0
+            reason = "OBV not available"
+        elif price_change > 0 and obv_change > 0 and current_obv > current_obv_ma and current_obv_ma > previous_obv_ma:
+            # 가격과 OBV 모두 상승 트렌드 - 강한 매수 시그널
+            signal_type = SignalType.BUY
+            obv_trend_strength = abs(current_obv - current_obv_ma) / abs(current_obv_ma) if current_obv_ma != 0 else 0
+            strength = min(obv_trend_strength, 1.0)
+            reason = f"Price & OBV uptrend confirmed (OBV: {current_obv:.0f}, MA: {current_obv_ma:.0f})"
+        elif price_change < 0 and obv_change < 0 and current_obv < current_obv_ma and current_obv_ma < previous_obv_ma:
+            # 가격과 OBV 모두 하락 트렌드 - 강한 매도 시그널
+            signal_type = SignalType.SELL
+            obv_trend_strength = abs(current_obv - current_obv_ma) / abs(current_obv_ma) if current_obv_ma != 0 else 0
+            strength = min(obv_trend_strength, 1.0)
+            reason = f"Price & OBV downtrend confirmed (OBV: {current_obv:.0f}, MA: {current_obv_ma:.0f})"
+        elif price_change > 0 and obv_change < 0:
+            # 약세 다이버전스: 가격 상승 but OBV 하락 - 매도 시그널
+            signal_type = SignalType.SELL
+            strength = 0.6
+            reason = f"Bearish divergence: Price ↑ but OBV ↓ (OBV change: {obv_change:.0f})"
+        elif price_change < 0 and obv_change > 0:
+            # 강세 다이버전스: 가격 하락 but OBV 상승 - 매수 시그널
+            signal_type = SignalType.BUY
+            strength = 0.6
+            reason = f"Bullish divergence: Price ↓ but OBV ↑ (OBV change: {obv_change:.0f})"
+        else:
+            signal_type = SignalType.HOLD
+            strength = 0.0
+            trend = "up" if current_obv > current_obv_ma else "down"
+            reason = f"No clear signal (OBV trend: {trend}, current: {current_obv:.0f})"
+        
+        signal = Signal(
+            signal_type=signal_type,
+            price=current_price,
+            timestamp=df.index[-1] if isinstance(df.index[-1], datetime) else datetime.now(),
+            symbol=symbol,
+            strength=strength,
+            reason=reason
+        )
+        
+        self.add_signal(signal)
+        return signal

@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.trading_bot import TradingBot
 from src.risk_manager import RiskManager
-from src.strategies import RSIStrategy, MACDStrategy, MovingAverageCrossStrategy
+from src.strategies import RSIStrategy, MACDStrategy, MovingAverageCrossStrategy, OBVStrategy
 from config.trading_config import (
     EXCHANGE_CONFIG,
     TRADING_CONFIG,
@@ -125,6 +125,12 @@ def create_strategy():
             fast_period=params['fast_period'],
             slow_period=params['slow_period']
         )
+    elif strategy_name == 'OBVStrategy':
+        params = STRATEGY_CONFIG['obv']
+        strategy = OBVStrategy(
+            obv_ma_period=params['obv_ma_period'],
+            divergence_lookback=params['divergence_lookback']
+        )
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
     
@@ -165,6 +171,8 @@ def print_configuration():
         print(f"   Parameters: {STRATEGY_CONFIG['macd']}")
     elif STRATEGY_CONFIG['name'] == 'MovingAverageCrossStrategy':
         print(f"   Parameters: {STRATEGY_CONFIG['ma_cross']}")
+    elif STRATEGY_CONFIG['name'] == 'OBVStrategy':
+        print(f"   Parameters: {STRATEGY_CONFIG['obv']}")
     
     print("\n🛡️  Risk Management:")
     print(f"   Max Position Size: {RISK_CONFIG['max_position_size']*100:.0f}%")

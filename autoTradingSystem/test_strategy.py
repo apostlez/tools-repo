@@ -18,6 +18,7 @@ from src.strategies import (
     RSIStrategy,
     MACDStrategy,
     MovingAverageCrossStrategy,
+    OBVStrategy,
     SignalType,
     PortfolioManager
 )
@@ -241,7 +242,8 @@ def main():
         strategies = [
             RSIStrategy(oversold=30, overbought=70),
             MACDStrategy(),
-            MovingAverageCrossStrategy(fast_period=20, slow_period=50)
+            MovingAverageCrossStrategy(fast_period=20, slow_period=50),
+            OBVStrategy(obv_ma_period=20, divergence_lookback=5)
         ]
         
         # 3. 각 전략 테스트
