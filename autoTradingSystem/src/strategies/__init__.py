@@ -16,6 +16,10 @@ from .sample_strategies import (
     OBVStrategy
 )
 
+from .custom_strategies import (
+    RSIOBVStrategy,
+)
+
 __all__ = [
     'BaseStrategy',
     'Signal',
@@ -24,5 +28,6 @@ __all__ = [
     'RSIStrategy',
     'MACDStrategy',
     'MovingAverageCrossStrategy',
-    'OBVStrategy'
+    'OBVStrategy',
+    'RSIOBVStrategy',
 ]

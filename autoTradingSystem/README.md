@@ -25,8 +25,10 @@ autoTradingSystem/
 ├── test_binance_api.py     # Binance API 테스트
 ├── debug_api.py            # API 디버그 도구
 ├── test_strategy.py        # 전략 테스트 스크립트
+├── find_surging_coins.py   # 실시간 급등 종목 감지 🚀
 ├── run_test.bat            # API 테스트 실행
-└── run_strategy_test.bat   # 전략 테스트 실행
+├── run_strategy_test.bat   # 전략 테스트 실행
+└── run_surge_detector.bat  # 급등 종목 감지 실행
 ```
 
 ## 빠른 시작
@@ -67,7 +69,31 @@ python debug_api.py
 run_strategy_test.bat
 ```
 
-### 5. 자동 매매 봇 실행 🚀
+### 5. 급등 종목 감지 🚀
+
+```bash
+# 실시간 가격 급등 종목 모니터링
+run_surge_detector.bat
+
+# 또는
+python find_surging_coins.py
+```
+
+**설정 옵션** (스크립트 내부 수정):
+- `THRESHOLD`: 급등 기준 (기본값: 3.0%)
+- `INTERVAL`: 체크 간격 (기본값: 60초)
+- `MIN_VOLUME`: 최소 거래량 필터 (기본값: $100,000)
+
+**출력 예시**:
+```
+🚀 급등 종목 감지: 3개
+----------------------------------------------------------------------
+🔥 XRP/USDT     | 가격: $    2.0950 | 상승률: + 5.23% | 거래량: $  1,234,567
+🔥 BTC/USDT     | 가격: $98,432.10  | 상승률: + 4.15% | 거래량: $ 45,678,901
+🔥 ETH/USDT     | 가격: $ 3,456.78  | 상승률: + 3.87% | 거래량: $ 23,456,789
+```
+
+### 6. 자동 매매 봇 실행
 
 ```bash
 # 트레이딩 봇 실행 (DRY RUN 모드)
@@ -126,6 +152,12 @@ python main.py
    - 일일 최대 손실 한도
    - 동시 포지션 수 제한
    - 트레일링 스탑
+
+3. **급등 종목 감지 시스템** ([find_surging_coins.py](find_surging_coins.py))
+   - 실시간 가격 모니터링
+   - 급등 종목 자동 감지 및 알림
+   - 거래량 필터링
+   - 급등 이력 추적 및 통계
 
 ### 🚧 개발 예정
 

@@ -66,7 +66,7 @@ TRADING_CONFIG = {
 # Strategy Configuration
 # ============================================
 STRATEGY_CONFIG = {
-    'name': os.getenv('STRATEGY_NAME', 'OBVStrategy'),  # 'RSIStrategy', 'MACDStrategy', 'MovingAverageCrossStrategy', 'OBVStrategy'
+    'name': os.getenv('STRATEGY_NAME', 'RSIOBVStrategy'),  # 'RSIStrategy', 'MACDStrategy', 'MovingAverageCrossStrategy', 'OBVStrategy'
     
     # RSI Strategy Parameters
     'rsi': {
@@ -92,6 +92,15 @@ STRATEGY_CONFIG = {
     'obv': {
         'obv_ma_period': get_env_int('OBV_MA_PERIOD', 20), #  캔들 갯수의 이동평균 기간
         'divergence_lookback': get_env_int('OBV_DIVERGENCE_LOOKBACK', 5) # 다이버전스 확인용 과거 캔들 수
+    },
+
+    # RSI + OBV Strategy Parameters
+    'rsi_obv': {
+        'oversold': get_env_int('RSI_OVERSOLD', 30),
+        'overbought': get_env_int('RSI_OVERBOUGHT', 70),
+        'rsi_period': get_env_int('RSI_PERIOD', 14),
+        'obv_ma_period': get_env_int('OBV_MA_PERIOD', 20),
+        'obv_weight': get_env_float('OBV_WEIGHT', 0.5)
     }
 }
 

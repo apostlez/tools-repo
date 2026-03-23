@@ -134,6 +134,51 @@ OBVStrategy(
 
 ---
 
+### 5. RSI + OBV Strategy (복합 가중치 전략) ⭐ Custom
+
+**전략 설명:**
+- RSI로 기본 매수/매도 시그널을 생성한 뒤, OBV 트렌드로 시그널 강도에 가중치를 곱하는 복합 전략
+- OBV 이동평균의 변화율을 `tanh` 로 −1 ~ +1 정규화하여 방향성 팩터로 사용
+
+**시그널 강도 계산식:**
+```
+BUY  강도 = rsi_strength × (1 + obv_weight × obv_factor)
+SELL 강도 = rsi_strength × (1 − obv_weight × obv_factor)
+```
+
+| RSI 시그널 | OBV 방향 | 결과 |
+|-----------|---------|------|
+| BUY       | 상승 ↑  | 강도 **증폭** (강세 확인) |
+| BUY       | 하락 ↓  | 강도 **감소** (신뢰도 낮은 반등) |
+| SELL      | 하락 ↓  | 강도 **증폭** (약세 확인) |
+| SELL      | 상승 ↑  | 강도 **감소** (신뢰도 낮은 하락) |
+
+**파라미터:**
+```python
+RSIOBVStrategy(
+    oversold=30,        # RSI 과매도 기준 (기본값: 30)
+    overbought=70,      # RSI 과매수 기준 (기본값: 70)
+    rsi_period=14,      # RSI 계산 기간 (기본값: 14)
+    obv_ma_period=20,   # OBV 이동평균 기간 — 트렌드 판단용 (기본값: 20)
+    obv_weight=0.5      # OBV 가중치 최대값 0.0 ~ 1.0 (기본값: 0.5)
+)
+```
+
+**적합한 시장:**
+- 거래량이 뒷받침되는 과매수/과매도 반전 시장
+- RSI 단독 신호의 신뢰도를 높이고 싶은 경우
+
+**장점:**
+- RSI 단순 전략 대비 허위 시그널 감소
+- OBV로 거래량 흐름을 반영해 시그널의 신뢰도 향상
+- `obv_weight` 파라미터로 OBV 반영 강도 조절 가능
+
+**단점:**
+- OBV 데이터가 없거나 부족하면 RSI 전략과 동일하게 동작
+- 두 지표 모두 후행성을 가지므로 급반전 시 지연 가능
+
+---
+
 ## Strategy Testing
 
 ### 테스트 실행 방법
@@ -146,10 +191,26 @@ venv\Scripts\activate
 python test_strategy.py
 ```
 
+### 전략 선택 방법
+
+`config/trading_config.py` 의 `STRATEGY_NAME` 값을 변경하거나 `.env` 파일에 환경변수를 설정:
+
+```bash
+# .env 파일
+STRATEGY_NAME=RSIOBVStrategy   # RSI+OBV 복합 전략 (기본)
+# STRATEGY_NAME=RSIStrategy
+# STRATEGY_NAME=MACDStrategy
+# STRATEGY_NAME=MovingAverageCrossStrategy
+# STRATEGY_NAME=OBVStrategy
+
+# RSI+OBV 전용 파라미터
+OBV_WEIGHT=0.5    # OBV 가중치 (0.0 ~ 1.0)
+```
+
 ### 테스트 내용
 
 1. **시장 데이터 가져오기**: Binance Testnet에서 BTC/USDT 1시간봉 200개 조회
-2. **전략별 시그널 생성**: 각 전략(RSI, MACD, MA Cross, OBV)의 현재 시그널 및 지표 값 확인
+2. **전략별 시그널 생성**: 각 전략(RSI, MACD, MA Cross, OBV, **RSI+OBV**)의 현재 시그널 및 지표 값 확인
 3. **백테스트 시뮬레이션**: RSI 전략으로 과거 데이터 백테스트 실행
 
 ### 출력 정보
@@ -164,9 +225,10 @@ python test_strategy.py
 
 ## Custom Strategy 만들기
 
-새로운 전략을 만들려면 `BaseStrategy`를 상속:
+새로운 전략은 `src/strategies/custom_strategies.py` 에 추가하고 `BaseStrategy` 를 상속:
 
 ```python
+# src/strategies/custom_strategies.py
 from src.strategies import BaseStrategy, Signal, SignalType
 
 class MyCustomStrategy(BaseStrategy):
@@ -193,12 +255,21 @@ class MyCustomStrategy(BaseStrategy):
         return Signal(SignalType.HOLD, df['close'].iloc[-1], datetime.now(), symbol)
 ```
 
+전략 추가 후 아래 두 파일을 업데이트:
+
+1. **`src/strategies/__init__.py`** — 클래스 임포트 및 `__all__` 에 추가
+2. **`config/trading_config.py`** — `STRATEGY_CONFIG` 에 파라미터 섹션 추가
+3. **`main.py`** — `create_strategy()` 와 `print_configuration()` 에 분기 추가
+
+> **구현 예시**: `RSIOBVStrategy` (`src/strategies/custom_strategies.py`) 참고
+
 ---
 
 ## 다음 단계
 
 1. ✅ 전략 테스트 완료 → `test_strategy.py` 실행
-2. 📝 전략 파라미터 조정 및 최적화
-3. 🔄 실시간 트레이딩 시스템 구현
-4. 🛡️ 리스크 관리 모듈 추가
-5. 📊 성능 모니터링 및 알림 시스템
+2. ✅ 커스텀 전략 구현 → `RSIOBVStrategy` (`src/strategies/custom_strategies.py`)
+3. ✅ 실시간 트레이딩 시스템 구현 → `main.py` + `src/trading_bot.py`
+4. ✅ 리스크 관리 모듈 추가 → `src/risk_manager.py`
+5. 📝 전략 파라미터 최적화 (백테스트 기반)
+6. 📊 성능 모니터링 및 알림 시스템
