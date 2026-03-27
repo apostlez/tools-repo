@@ -23,7 +23,7 @@
 본 시스템의 백테스팅은 다음 방식으로 동작합니다:
 
 ```
-Binance Testnet에서 OHLCV 데이터 수집
+Upbit에서 OHLCV 데이터 수집 (배치 요청으로 최신 N개 보장)
         ↓
 기술적 지표 전체 계산 (RSI, MACD, OBV 등)
         ↓
@@ -31,8 +31,8 @@ Binance Testnet에서 OHLCV 데이터 수집
         ↓
 strategy.analyze() → BUY / SELL / HOLD 시그널 생성
         ↓
-BUY 시그널 + 포지션 없음 → 잔액 95% 매수
-SELL 시그널 + 포지션 보유 → 전량 매도
+BUY 시그널 + 포지션 없음 → 잔액 95% 매수  (진입 이유·RSI·OBV 출력)
+SELL 시그널 + 포지션 보유 → 전량 매도     (손익·진입/청산가·이유·RSI·OBV 출력)
         ↓
 최종 손익, 승률, Buy & Hold 대비 성과 출력
 ```
@@ -59,11 +59,11 @@ python tests/test_strategy.py
 ### 실행 조건
 
 - `venv/` 가상환경이 설치되어 있어야 합니다 (`setup.bat` 실행)
-- `.env` 파일에 Binance API 키가 설정되어 있어야 합니다 (Testnet)
+- `.env` 파일에 Upbit API 키가 설정되어 있어야 합니다
 
 ```env
-BINANCE_API_KEY=your_testnet_api_key
-BINANCE_SECRET_KEY=your_testnet_secret_key
+UPBIT_ACCESS_KEY=your_upbit_access_key
+UPBIT_SECRET_KEY=your_upbit_secret_key
 ```
 
 ---
@@ -115,14 +115,23 @@ BINANCE_SECRET_KEY=your_testnet_secret_key
   Backtest Simulation: RSI Strategy
 ======================================================================
 
-💰 Initial Balance: $10,000.00
-📅 Period: 2026-02-17 ~ 2026-03-27
+💰 Initial Balance: 1,000,000 KRW
+📅 Period: 2026-03-27 12:09:00 ~ 2026-03-28 05:28:00
+💱 Exchange: Upbit | Symbol: XRP/KRW
 
 🔄 Running backtest...
-  🟢 BUY  | 2026-02-20 14:00 | $82,310.00 | Amount: 0.115312
-  🔴 SELL | 2026-02-23 08:00 | $85,100.00  ← 매도 확정가
-  🟢 BUY  | 2026-03-01 22:00 | $79,450.00 | Amount: 0.127020
-  🔴 SELL | 2026-03-07 16:00 | $83,200.00
+  🟢 BUY  | 2026-03-27 13:34:00 | 2,020.00 KRW | Amount: 470.297030
+          Balance   : 50,000 KRW (remaining after buy)
+          Reason    : RSI oversold: 28.45 < 30
+          Strength  : 51.83%
+          RSI       : 28.45
+          OBV       : 11,234,567
+  🔴 SELL | 2026-03-27 13:45:00 | 2,033.00 KRW
+       ✅ Trade P&L : +6,114 KRW  (+0.64%)
+          Entry     : 2,020.00 KRW → Exit: 2,033.00 KRW
+          Reason    : RSI overbought: 71.32 > 70
+          RSI       : 71.32
+          OBV       : 12,345,678
   ...
 
 ======================================================================
@@ -136,23 +145,33 @@ BINANCE_SECRET_KEY=your_testnet_secret_key
    Win Rate:       62.50%      ← 승률
 
 💵 Financial Results:
-   Initial Balance: $10,000.00
-   Final Balance:   $11,340.52
-   Total Profit:    $1,340.52
-   Return:          +13.41%    ← 전략 수익률
+   Initial Balance:      1,000,000 KRW
+   Final Balance:        1,013,405 KRW
+   Total Profit:           +13,405 KRW
+   Return:                  +1.34%  ← 전략 수익률
 
 📈 Trade Analysis:
-   Average Profit: $167.57     ← 거래당 평균 손익
-   Best Trade:     $521.30     ← 最고 수익 거래
-   Worst Trade:    -$183.20    ← 最대 손실 거래
+   Average Profit:          +1,676 KRW  ← 거래당 평균 손익
+   Best Trade:              +5,213 KRW  ← 最고 수익 거래
+   Worst Trade:             -1,832 KRW  ← 最대 손실 거래
 
 🔄 Strategy vs Buy & Hold:
-   Strategy Return:   +13.41%
-   Buy & Hold Return: +8.23%
-   Outperformance:    +5.18%   ← 양수면 전략이 단순 보유보다 우수
+   Strategy Return:   +1.34%
+   Buy & Hold Return: +0.82%
+   Outperformance:    +0.52%   ← 양수면 전략이 단순 보유보다 우수
 ```
 
-#### 지표 해석 요령
+#### 거래 로그 해석
+
+| 항목 | 설명 |
+|------|------|
+| **Trade P&L** | 해당 거래의 실현 손익 (✅ 이익 / ❌ 손실) |
+| **Entry → Exit** | 매수가 vs 청산가 — 가격 방향 한눈에 확인 |
+| **Reason** | 전략이 BUY/SELL을 낸 구체적 이유 (지표 값 포함) |
+| **Strength** | 신호 강도 (0~100%) — 낮으면 경계선 신호 |
+| **RSI / OBV** | 해당 시점 실제 지표 값 — 패턴 분석에 활용 |
+
+#### 결과 지표 해석 요령
 
 | 지표 | 좋은 기준 | 설명 |
 |------|-----------|------|
@@ -170,24 +189,24 @@ BINANCE_SECRET_KEY=your_testnet_secret_key
 ```python
 # tests/test_strategy.py — main() 함수 내부
 
-SYMBOL          = 'BTC/USDT'   # 백테스트 종목 (예: 'ETH/USDT', 'XRP/USDT')
-TIMEFRAME       = '1h'          # 시간 프레임 (1m/5m/15m/1h/4h/1d)
-LIMIT           = 200           # 가져올 캔들 수 (최소 100 권장)
-INITIAL_BALANCE = 10000         # 초기 자본 (USDT)
+SYMBOL          = 'XRP/KRW'    # 백테스트 종목 (예: 'BTC/KRW', 'ETH/KRW')
+TIMEFRAME       = '1m'          # 시간 프레임 (1m/5m/15m/1h/4h/1d)
+LIMIT           = 400           # 가져올 캔들 수 (Upbit는 200개 한도→배치 자동 처리)
+INITIAL_BALANCE = 1_000_000     # 초기 자본 (KRW)
 ```
 
 #### 시간 프레임별 데이터 기간 (LIMIT=200 기준)
 
-| TIMEFRAME | 데이터 기간 | 적합한 용도 |
-|-----------|------------|------------|
-| `1m`      | 약 3.3시간 | 초단기 스캘핑 전략 검증 |
-| `5m`      | 약 16.7시간 | 단기 전략 |
-| `15m`     | 약 2.1일 | 단기~중기 |
-| `1h`      | 약 8.3일 | **기본값** — 일반 전략 검증 |
-| `4h`      | 약 33.3일 | 중기 추세 전략 |
-| `1d`      | 약 6.7개월 | 장기 전략, 큰 그림 확인 |
+| TIMEFRAME | LIMIT=400 기준 데이터 기간 | 적합한 용도 |
+|-----------|--------------------------|------------|
+| `1m`      | 약 6.7시간 | 초단기 스캘핑 전략 검증 |
+| `5m`      | 약 1.4일 | 단기 전략 |
+| `15m`     | 약 4.2일 | 단기~중기 |
+| `1h`      | 약 16.7일 | 일반 전략 검증 |
+| `4h`      | 약 66.7일 | 중기 추세 전략 |
+| `1d`      | 약 13.3개월 | 장기 전략, 큰 그림 확인 |
 
-> 더 긴 기간을 보려면 `LIMIT`을 늘리세요. Binance는 최대 1000개까지 지원합니다 (ccxt 기본값).
+> Upbit API는 1회 최대 200개 제한이 있으나, `fetch_market_data()`가 자동으로 배치 요청을 수행해 `LIMIT`개까지 수집합니다. 항상 가장 최신 캔들 기준으로 수집됩니다.
 
 ---
 
@@ -252,8 +271,6 @@ run_backtest_simulation(selected_strategy, df, SYMBOL, INITIAL_BALANCE)
 ### RSI + OBV 복합 전략 (RSIOBVStrategy)
 
 ```python
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.strategies.custom_strategies import RSIOBVStrategy
 
 selected_strategy = RSIOBVStrategy(
@@ -331,11 +348,11 @@ class MyStrategy(BaseStrategy):
 
 | 항목 | 현재 구현 | 실제 거래 |
 |------|-----------|----------|
-| 수수료 | 미반영 | Binance 0.1% / trade |
+| 수수료 | 미반영 | Upbit 0.05% / trade |
 | 슬리피지 | 미반영 | 시장 주문 시 발생 |
 | 포지션 크기 | 잔액의 95% 고정 | 리스크 관리에 따라 가변 |
 | 거래 타입 | 시장가 가정 | 지정가/시장가 선택 가능 |
-| 데이터 | Testnet (최신 200 캔들) | 장기 과거 데이터 |
+| 데이터 | Upbit 최신 캔들 (배치 수집) | 장기 과거 데이터 |
 
 ### 과최적화(Overfitting) 주의
 

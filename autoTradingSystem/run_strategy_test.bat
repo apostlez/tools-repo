@@ -1,6 +1,7 @@
 @echo off
+chcp 65001 > nul
 echo ========================================
-echo Strategy Testing
+echo Strategy Testing (Upbit / XRP/KRW / 1m)
 echo ========================================
 echo.
 
