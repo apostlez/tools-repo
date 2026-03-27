@@ -188,7 +188,7 @@ RSIOBVStrategy(
 venv\Scripts\activate
 
 # 전략 테스트 실행
-python test_strategy.py
+python tests\test_strategy.py
 ```
 
 ### 전략 선택 방법
@@ -267,7 +267,7 @@ class MyCustomStrategy(BaseStrategy):
 
 ## 다음 단계
 
-1. ✅ 전략 테스트 완료 → `test_strategy.py` 실행
+1. ✅ 전략 테스트 완료 → `tests/test_strategy.py` 실행
 2. ✅ 커스텀 전략 구현 → `RSIOBVStrategy` (`src/strategies/custom_strategies.py`)
 3. ✅ 실시간 트레이딩 시스템 구현 → `main.py` + `src/trading_bot.py`
 4. ✅ 리스크 관리 모듈 추가 → `src/risk_manager.py`

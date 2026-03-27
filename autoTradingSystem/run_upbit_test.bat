@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo Binance API Test - Paper Trading Mode
+echo Upbit API Test
 echo ========================================
 echo.
 
@@ -18,24 +18,20 @@ REM Check if .env file exists
 if not exist ".env" (
     echo.
     echo Warning: .env file not found!
-    echo Creating .env file from template...
-    copy .env.example .env
+    echo Please create a .env file with Upbit API keys:
+    echo   UPBIT_ACCESS_KEY=your_access_key_here
+    echo   UPBIT_SECRET_KEY=your_secret_key_here
     echo.
-    echo Please edit .env file and add your Binance API keys:
-    echo   BINANCE_API_KEY=your_api_key_here
-    echo   BINANCE_SECRET_KEY=your_secret_key_here
-    echo.
-    echo For paper trading, use testnet keys from:
-    echo   https://testnet.binance.vision/
+    echo Upbit API 키 발급: https://upbit.com/mypage/open_api_management
     echo.
     pause
     exit /b 1
 )
 
 REM Run the test script
-echo Running Binance API tests...
+echo Running Upbit API tests...
 echo.
-python test_binance_api.py
+python tests\test_upbit_api.py
 
 echo.
 pause

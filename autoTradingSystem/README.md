@@ -13,22 +13,35 @@ autoTradingSystem/
 │   └── strategies/          # 매매 전략 모듈
 │       ├── __init__.py
 │       ├── base_strategy.py
-│       └── sample_strategies.py
+│       ├── sample_strategies.py
+│       └── custom_strategies.py
 ├── config/                  # 설정 파일
-│   └── strategies_guide.md
+│   └── trading_config.py
+├── docs/                    # 문서 및 가이드
+│   ├── BOT_GUIDE.md
+│   ├── README_API_TEST.md
+│   ├── CONFIG_GUIDE.md
+│   ├── strategies_guide.md
+│   ├── plan-autoTradingSystem.prompt.md
+│   └── test_result.md
+├── tests/                   # 테스트 스크립트
+│   ├── test_binance_api.py
+│   ├── test_upbit_api.py
+│   ├── test_strategy.py
+│   └── debug_api.py
 ├── logs/                    # 로그 파일
 ├── .env                     # 환경 변수 (API 키)
 ├── .env.example             # 환경 변수 템플릿
 ├── .gitignore
 ├── requirements.txt         # 필수 라이브러리
 ├── setup.bat               # 환경 설정 스크립트
-├── test_binance_api.py     # Binance API 테스트
-├── debug_api.py            # API 디버그 도구
-├── test_strategy.py        # 전략 테스트 스크립트
+├── main.py                 # 트레이딩 봇 진입점
 ├── find_surging_coins.py   # 실시간 급등 종목 감지 🚀
-├── run_test.bat            # API 테스트 실행
+├── run_binance_test.bat    # Binance API 테스트 실행
+├── run_upbit_test.bat      # Upbit API 테스트 실행
 ├── run_strategy_test.bat   # 전략 테스트 실행
-└── run_surge_detector.bat  # 급등 종목 감지 실행
+├── run_surge_detector.bat  # 급등 종목 감지 실행
+└── run_bot.bat             # 트레이딩 봇 실행
 ```
 
 ## 빠른 시작
@@ -56,11 +69,16 @@ BINANCE_SECRET_KEY=your_testnet_secret_key
 
 ```bash
 # Binance API 테스트
-run_test.bat
+run_binance_test.bat
+
+# Upbit API 테스트
+run_upbit_test.bat
 
 # 문제 발생 시 디버그
-python debug_api.py
+python tests\debug_api.py
 ```
+
+**자세한 테스트 가이드**: [docs/README_API_TEST.md](docs/README_API_TEST.md)
 
 ### 4. 전략 테스트
 
@@ -104,7 +122,7 @@ python main.py
 ```
 
 **설정 수정**: [config/trading_config.py](config/trading_config.py)  
-**자세한 가이드**: [BOT_GUIDE.md](BOT_GUIDE.md)
+**자세한 가이드**: [docs/BOT_GUIDE.md](docs/BOT_GUIDE.md)
 
 ## 주요 기능
 
@@ -192,7 +210,7 @@ python main.py
 - **매도**: 단기 MA가 장기 MA 하향 돌파
 - **적합**: 명확한 트렌드 시장
 
-자세한 내용: [config/strategies_guide.md](config/strategies_guide.md)
+자세한 내용: [docs/strategies_guide.md](docs/strategies_guide.md)
 
 ## 사용 예제
 
@@ -255,9 +273,7 @@ class MyStrategy(BaseStrategy):
 ⚠️ **중요 보안 사항**:
 
 1. **Paper Trading 우선**: 실제 자금 투입 전 충분한 테스트
-2. x] 실시간 트레이딩 시스템
-- [x] 리스크 관리 모듈
-- [x] 자동 매매 봇 (DRY RUN 모드): `.env` 파일은 절대 Git에 커밋하지 않음
+2. `.env` 파일은 절대 Git에 커밋하지 않음
 4. **권한 제한**: API 키는 최소 권한만 부여 (읽기, 트레이딩만)
 5. **출금 비활성화**: API 키에서 출금 권한 제거
 6. **리스크 관리**: 손절매 설정, 포지션 사이즈 제한
@@ -265,12 +281,12 @@ class MyStrategy(BaseStrategy):
 ## 개발 로드맵
 
 - [x] 개발 환경 구축
-- [x] 거래소 API 연동 (Binance)
+- [x] 거래소 API 연동 (Binance, Upbit)
 - [x] 기술적 지표 모듈
 - [x] 기본 매매 전략 구현
 - [x] 백테스팅 시스템
-- [ ] 실시간 트레이딩 시스템
-- [ ] 리스크 관리 모듈
+- [x] 실시간 트레이딩 시스템
+- [x] 리스크 관리 모듈
 - [ ] 알림 시스템 (텔레그램, 이메일)
 - [ ] 웹 대시보드
 - [ ] 머신러닝 전략
@@ -280,7 +296,7 @@ class MyStrategy(BaseStrategy):
 ## 문제 해결
 
 ### API 연결 오류
-- `debug_api.py` 실행하여 상세 진단
+- `tests/debug_api.py` 실행하여 상세 진단
 - Testnet API 키 재발급
 - 시스템 시간 동기화 확인
 

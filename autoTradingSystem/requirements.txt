@@ -5,6 +5,7 @@ numpy>=1.26.0                  # Numerical computing
 
 # Configuration & Environment
 python-dotenv>=1.0.0           # Environment variable management
+PyJWT>=2.8.0                   # JWT token generation (Upbit API auth)
 
 # Technical Analysis
 pandas-ta>=0.3.14b             # Technical analysis indicators

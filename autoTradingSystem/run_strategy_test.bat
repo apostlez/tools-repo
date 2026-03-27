@@ -25,7 +25,7 @@ if not exist ".env" (
 
 echo Running strategy tests...
 echo.
-python test_strategy.py
+python tests\test_strategy.py
 
 echo.
 pause
