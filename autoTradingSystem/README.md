@@ -20,6 +20,7 @@ autoTradingSystem/
 ├── docs/                    # 문서 및 가이드
 │   ├── BOT_GUIDE.md
 │   ├── README_API_TEST.md
+│   ├── BACKTEST_GUIDE.md
 │   ├── CONFIG_GUIDE.md
 │   ├── strategies_guide.md
 │   ├── plan-autoTradingSystem.prompt.md
@@ -80,12 +81,14 @@ python tests\debug_api.py
 
 **자세한 테스트 가이드**: [docs/README_API_TEST.md](docs/README_API_TEST.md)
 
-### 4. 전략 테스트
+### 4. 전략 테스트 및 백테스팅
 
 ```bash
-# 매매 전략 테스트 및 백테스트
+# 전략 시그널 분석 + RSI 전략 백테스팅
 run_strategy_test.bat
 ```
+
+**자세한 가이드**: [docs/BACKTEST_GUIDE.md](docs/BACKTEST_GUIDE.md)
 
 ### 5. 급등 종목 감지 🚀
 
@@ -153,9 +156,11 @@ python main.py
    - PortfolioManager (포트폴리오 관리)
 
 5. **백테스팅**
-   - 과거 데이터로 전략 검증
+   - 과거 데이터로 전략 검증 (최대 1000 캔들)
+   - 전략별 시그널 분석 (RSI, MACD, MA Cross, OBV, RSI+OBV)
    - 성과 분석 (승률, 수익률, 거래 통계)
    - Buy & Hold 대비 성과 비교
+   - 자세한 내용: [docs/BACKTEST_GUIDE.md](docs/BACKTEST_GUIDE.md)
 
 ### ✅ 최근 완료
 
