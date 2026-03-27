@@ -22,6 +22,7 @@ from src.strategies import (
     SignalType,
     PortfolioManager
 )
+from src.strategies.custom_strategies import RSIOBVStrategy
 
 # 환경 변수 로드
 load_dotenv()
@@ -243,21 +244,29 @@ def main():
             RSIStrategy(oversold=30, overbought=70),
             MACDStrategy(),
             MovingAverageCrossStrategy(fast_period=20, slow_period=50),
-            OBVStrategy(obv_ma_period=20, divergence_lookback=5)
+            OBVStrategy(obv_ma_period=20, divergence_lookback=5),
+            RSIOBVStrategy(oversold=30, overbought=70, obv_weight=0.5),
         ]
         
         # 3. 각 전략 테스트
         for strategy in strategies:
             test_strategy(strategy, df, SYMBOL)
         
-        # 4. 백테스트 시뮬레이션 (첫 번째 전략으로)
-        print("\n\n")
-        print("="*70)
-        print("  Running Detailed Backtest")
-        print("="*70)
-        
-        selected_strategy = RSIStrategy(oversold=30, overbought=70)
-        run_backtest_simulation(selected_strategy, df, SYMBOL, INITIAL_BALANCE)
+        # 4. 백테스트 시뮬레이션 (전략별 순서대로)
+        backtest_strategies = [
+            RSIStrategy(oversold=30, overbought=70),
+            MACDStrategy(),
+            MovingAverageCrossStrategy(fast_period=20, slow_period=50),
+            OBVStrategy(obv_ma_period=20, divergence_lookback=5),
+            RSIOBVStrategy(oversold=30, overbought=70, obv_weight=0.5),
+        ]
+
+        for bt_strategy in backtest_strategies:
+            print("\n\n")
+            print("="*70)
+            print(f"  Running Backtest: {bt_strategy.name}")
+            print("="*70)
+            run_backtest_simulation(bt_strategy, df, SYMBOL, INITIAL_BALANCE)
         
         print("\n" + "="*70)
         print("  ✅ All tests completed successfully!")

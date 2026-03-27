@@ -283,6 +283,7 @@ class OBVStrategy(BaseStrategy):
         divergence_lookback = self.get_parameter('divergence_lookback')
         
         # OBV 이동평균 계산
+        df = df.copy()
         df['obv_ma'] = df['obv'].rolling(window=obv_ma_period).mean()
         
         current_price = df['close'].iloc[-1]
