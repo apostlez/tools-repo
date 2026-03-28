@@ -77,15 +77,55 @@ def setup_logging():
 
 
 def create_exchange():
-    """거래소 객체 생성"""
+    """거래소 객체 생성 (EXCHANGE_NAME 설정에 따라 Upbit 또는 Binance 사용)"""
     load_dotenv()
-    
+
+    exchange_name = EXCHANGE_CONFIG['name'].lower()
+    logging.info(f"🏦 Exchange: {exchange_name.upper()}")
+
+    if exchange_name == 'upbit':
+        return _create_upbit_exchange()
+    else:
+        # 기본값: Binance (백업)
+        return _create_binance_exchange()
+
+
+def _create_upbit_exchange():
+    """Upbit 거래소 객체 생성"""
+    access_key = os.getenv('UPBIT_ACCESS_KEY')
+    secret_key = os.getenv('UPBIT_SECRET_KEY')
+
+    if not access_key or not secret_key:
+        raise ValueError(
+            "Upbit API keys not found in .env file. "
+            "Please set UPBIT_ACCESS_KEY and UPBIT_SECRET_KEY."
+        )
+
+    exchange = ccxt.upbit({
+        'apiKey': access_key,
+        'secret': secret_key,
+        'enableRateLimit': True,
+    })
+
+    # Upbit은 testnet을 지원하지 않음
+    if EXCHANGE_CONFIG['testnet']:
+        logging.warning("⚠️  Upbit does not support testnet. 실제 거래소에 연결됩니다.")
+        logging.warning("⚠️  DRY_RUN=true 설정으로 실제 주문이 차단되는지 확인하세요.")
+    logging.info("🔧 Using Upbit Exchange")
+    return exchange
+
+
+def _create_binance_exchange():
+    """Binance 거래소 객체 생성 (백업용)"""
     api_key = os.getenv('BINANCE_API_KEY')
     secret_key = os.getenv('BINANCE_SECRET_KEY')
-    
+
     if not api_key or not secret_key:
-        raise ValueError("API keys not found in .env file")
-    
+        raise ValueError(
+            "Binance API keys not found in .env file. "
+            "Please set BINANCE_API_KEY and BINANCE_SECRET_KEY."
+        )
+
     exchange = ccxt.binance({
         'apiKey': api_key,
         'secret': secret_key,
@@ -95,14 +135,15 @@ def create_exchange():
             'adjustForTimeDifference': True,
         }
     })
-    
+
     # Testnet 설정
     if EXCHANGE_CONFIG['testnet']:
         exchange.set_sandbox_mode(True)
         logging.info("🔧 Using Binance Testnet (Paper Trading)")
     else:
         logging.warning("⚠️  LIVE TRADING MODE - Real money at risk!")
-    
+
+    logging.info("🔧 Using Binance Exchange")
     return exchange
 
 
@@ -195,7 +236,12 @@ def print_configuration():
     
     print("\n🔧 Exchange:")
     print(f"   Name: {EXCHANGE_CONFIG['name'].upper()}")
-    print(f"   Testnet: {EXCHANGE_CONFIG['testnet']}")
+    if EXCHANGE_CONFIG['name'].lower() == 'upbit':
+        print(f"   Testnet: N/A (Upbit은 testnet 미지원)")
+        print(f"   ※ Upbit 심볼 형식 예시: XRP/KRW, BTC/KRW")
+    else:
+        print(f"   Testnet: {EXCHANGE_CONFIG['testnet']}")
+        print(f"   ※ Binance 심볼 형식 예시: XRP/USDT, BTC/USDT")
     
     print("\n" + "="*70)
 

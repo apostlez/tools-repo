@@ -9,10 +9,11 @@
 1. [백테스팅이란?](#1-백테스팅이란)
 2. [백테스팅 실행](#2-백테스팅-실행)
 3. [결과 해석](#3-결과-해석)
-4. [파라미터 변경](#4-파라미터-변경)
-5. [전략별 백테스트](#5-전략별-백테스트)
-6. [구현 구조](#6-구현-구조)
-7. [한계 및 주의사항](#7-한계-및-주의사항)
+4. [출력 파일](#4-출력-파일)
+5. [파라미터 변경](#5-파라미터-변경)
+6. [전략별 백테스트](#6-전략별-백테스트)
+7. [구현 구조](#7-구현-구조)
+8. [한계 및 주의사항](#8-한계-및-주의사항)
 
 ---
 
@@ -23,7 +24,8 @@
 본 시스템의 백테스팅은 다음 방식으로 동작합니다:
 
 ```
-Upbit에서 OHLCV 데이터 수집 (배치 요청으로 최신 N개 보장)
+[Option A] Upbit API에서 OHLCV 데이터 수집 (배치 요청으로 최신 N개 보장)
+[Option B] raw_*.csv 파일에서 OHLCV 데이터 로드 ← API 없이 재실행 가능
         ↓
 기술적 지표 전체 계산 (RSI, MACD, OBV 등)
         ↓
@@ -35,6 +37,11 @@ BUY 시그널 + 포지션 없음 → 잔액 95% 매수  (진입 이유·RSI·OBV
 SELL 시그널 + 포지션 보유 → 전량 매도     (손익·진입/청산가·이유·RSI·OBV 출력)
         ↓
 최종 손익, 승률, Buy & Hold 대비 성과 출력
+        ↓
+logs/backtest_YYMMDDHHMI.json 저장
+        ↓
+tests/generate_chart.py → 백테스트 대시보드 차트 생성
+tests/chart_from_csv.py → 캔들스틱 차트 생성 (CSV 실행 시)
 ```
 
 > 처음 50 캔들은 지표 계산을 위한 **워밍업 기간**이므로 거래가 발생하지 않습니다.
@@ -43,27 +50,68 @@ SELL 시그널 + 포지션 보유 → 전량 매도     (손익·진입/청산�
 
 ## 2. 백테스팅 실행
 
-### 기본 실행 (권장)
+### Option A — API로 최신 데이터 수집 후 실행
 
 ```bat
 run_strategy_test.bat
 ```
 
-또는 직접 실행:
+또는 직접:
 
 ```bash
 venv\Scripts\activate
 python tests/test_strategy.py
 ```
 
-### 실행 조건
-
+**실행 조건**
 - `venv/` 가상환경이 설치되어 있어야 합니다 (`setup.bat` 실행)
 - `.env` 파일에 Upbit API 키가 설정되어 있어야 합니다
 
 ```env
 UPBIT_ACCESS_KEY=your_upbit_access_key
 UPBIT_SECRET_KEY=your_upbit_secret_key
+```
+
+### Option B — 저장된 CSV 파일로 실행 (API 불필요)
+
+API 키 없이, 이전에 수집된 raw CSV 파일을 그대로 재사용할 수 있습니다.
+
+```bat
+run_strategy_test.bat logs\raw_XRP_KRW_1m_2603290425.csv
+```
+
+또는 직접:
+
+```bash
+python tests/test_strategy.py logs/raw_XRP_KRW_1m_2603290425.csv
+```
+
+> CSV 파일명은 `raw_{SYMBOL}_{TIMEFRAME}_{YYMMDDHHMI}.csv` 형식이어야 합니다.  
+> 심볼(`XRP/KRW`)은 파일명에서 자동으로 추출됩니다.
+
+### 차트 자동 생성
+
+`run_strategy_test.bat` 실행 시 전략 테스트 완료 후 차트가 **자동으로 생성**됩니다.
+
+| 스크립트 | 실행 조건 | 생성 파일 |
+|----------|-----------|----------|
+| `tests/generate_chart.py` | 항상 | `logs/backtest_*_chart.png` |
+| `tests/chart_from_csv.py` | CSV 인자 있을 때 | `logs/raw_*_chart.png` |
+
+차트를 단독으로 생성할 때:
+
+```bash
+# 최신 JSON 자동 선택
+python tests/generate_chart.py
+
+# JSON 직접 지정
+python tests/generate_chart.py logs/backtest_2603290446.json
+
+# 최신 CSV 자동 선택
+python tests/chart_from_csv.py
+
+# CSV 직접 지정
+python tests/chart_from_csv.py logs/raw_XRP_KRW_1m_2603290425.csv
 ```
 
 ---
@@ -182,14 +230,75 @@ UPBIT_SECRET_KEY=your_upbit_secret_key
 
 ---
 
-## 4. 파라미터 변경
+## 4. 출력 파일
 
-`tests/test_strategy.py` 파일 상단의 `main()` 함수에서 수정합니다.
+백테스팅 실행 후 `logs/` 폴더에 다음 파일이 생성됩니다.
+
+### raw_*.csv — OHLCV 원시 데이터
+
+API로 수집한 경우 자동 저장됩니다. Option B 실행의 입력 파일로 재사용 가능합니다.
+
+```
+logs/raw_XRP_KRW_1m_2603290425.csv
+```
+
+```csv
+timestamp,open,high,low,close,volume
+2026-03-28 12:46:00,2029.0,2029.0,2028.0,2029.0,14967.59
+...
+```
+
+### backtest_*.json — 백테스트 결과
+
+전략별 요약 결과, 개별 거래 P&L, 현재 지표값이 저장됩니다.
+
+```
+logs/backtest_2603290446.json
+```
+
+```json
+{
+  "symbol": "XRP/KRW",
+  "period": "2026-03-28 12:46:00 ~ 2026-03-28 19:25:00",
+  "initial_balance": 1000000,
+  "buy_and_hold_return": 0.1,
+  "strategies": {
+    "RSI Strategy": {
+      "trades": 2, "wins": 1, "losses": 1,
+      "return_pct": -0.14, "profit": -1399.58, "vs_bh": -0.24
+    },
+    ...
+  },
+  "trade_pnl": {
+    "RSI Strategy": [2827.0, -4226.58],
+    ...
+  },
+  "current_indicators": {
+    "Current Price": 2037.0,
+    "RSI(14)": 54.55,
+    "MACD": -0.588,
+    ...
+  }
+}
+```
+
+### *_chart.png — 차트 이미지
+
+| 파일 | 내용 |
+|------|------|
+| `logs/backtest_*_chart.png` | 전략별 수익률·승률·P&L 비교 대시보드 |
+| `logs/raw_*_chart.png` | 캔들스틱 + 거래량 + RSI + MACD |
+
+---
+
+## 5. 파라미터 변경
+
+`tests/test_strategy.py` 파일의 `main()` 함수에서 수정합니다.
 
 ```python
 # tests/test_strategy.py — main() 함수 내부
+# (CSV 파일 지정 시 TIMEFRAME/LIMIT은 무시됩니다)
 
-SYMBOL          = 'XRP/KRW'    # 백테스트 종목 (예: 'BTC/KRW', 'ETH/KRW')
 TIMEFRAME       = '1m'          # 시간 프레임 (1m/5m/15m/1h/4h/1d)
 LIMIT           = 400           # 가져올 캔들 수 (Upbit는 200개 한도→배치 자동 처리)
 INITIAL_BALANCE = 1_000_000     # 초기 자본 (KRW)
@@ -210,7 +319,7 @@ INITIAL_BALANCE = 1_000_000     # 초기 자본 (KRW)
 
 ---
 
-## 5. 전략별 백테스트
+## 6. 전략별 백테스트
 
 기본적으로 `run_backtest_simulation()`은 `RSIStrategy`로 실행됩니다.  
 다른 전략을 백테스트하려면 `tests/test_strategy.py`의 `main()` 하단을 수정합니다.
@@ -287,7 +396,22 @@ run_backtest_simulation(selected_strategy, df, SYMBOL, INITIAL_BALANCE)
 
 ---
 
-## 6. 구현 구조
+## 7. 구현 구조
+
+### 파일 구조
+
+```
+autoTradingSystem/
+├── tests/
+│   ├── test_strategy.py      # 백테스트 실행 (CSV or API)
+│   ├── generate_chart.py     # 백테스트 대시보드 차트 (JSON → PNG)
+│   └── chart_from_csv.py     # 캔들스틱 차트 (CSV → PNG)
+├── logs/
+│   ├── raw_*.csv             # OHLCV 원시 데이터
+│   ├── backtest_*.json       # 백테스트 결과
+│   └── *_chart.png           # 생성된 차트
+└── run_strategy_test.bat     # 통합 실행 스크립트
+```
 
 ### 핵심 클래스
 
@@ -342,7 +466,7 @@ class MyStrategy(BaseStrategy):
 
 ---
 
-## 7. 한계 및 주의사항
+## 8. 한계 및 주의사항
 
 ### 현재 백테스팅의 한계
 

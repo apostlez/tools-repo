@@ -26,7 +26,22 @@ if not exist ".env" (
 
 echo Running strategy tests...
 echo.
-python tests\test_strategy.py
+if "%~1"=="" (
+    python tests\test_strategy.py
+) else (
+    echo Using CSV file: %~1
+    python tests\test_strategy.py "%~1"
+)
+
+echo.
+echo Generating backtest chart...
+python tests\generate_chart.py
+
+if not "%~1"=="" (
+    echo.
+    echo Generating candlestick chart...
+    python tests\chart_from_csv.py "%~1"
+)
 
 echo.
 pause
