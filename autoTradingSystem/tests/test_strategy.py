@@ -12,6 +12,7 @@ if sys.stdout.encoding != 'utf-8':
 if sys.stderr.encoding != 'utf-8':
     sys.stderr.reconfigure(encoding='utf-8')
 
+import json
 import ccxt
 import pandas as pd
 from datetime import datetime, timedelta
@@ -33,6 +34,35 @@ from src.strategies.custom_strategies import RSIOBVStrategy
 
 # 환경 변수 로드
 load_dotenv()
+
+
+def load_from_csv(csv_path: str) -> tuple[pd.DataFrame, str]:
+    """
+    CSV 파일에서 시장 데이터 로드
+
+    Args:
+        csv_path: CSV 파일 경로 (raw_XRP_KRW_1m_*.csv 형식)
+
+    Returns:
+        (OHLCV DataFrame, symbol 문자열)
+    """
+    print(f"\n📂 Loading market data from CSV: {csv_path}")
+
+    df = pd.read_csv(csv_path, parse_dates=['timestamp'])
+    df = df.sort_values('timestamp').reset_index(drop=True)
+    df.set_index('timestamp', inplace=True)
+
+    # 파일명에서 심볼 추출: raw_XRP_KRW_1m_*.csv → XRP/KRW
+    basename = os.path.basename(csv_path)  # raw_XRP_KRW_1m_2603290425.csv
+    parts = basename.replace('.csv', '').split('_')  # ['raw', 'XRP', 'KRW', '1m', ...]
+    if len(parts) >= 3 and parts[0] == 'raw':
+        symbol = f"{parts[1]}/{parts[2]}"
+    else:
+        symbol = 'UNKNOWN/KRW'
+
+    print(f"✅ Loaded {len(df)} candles  |  Symbol: {symbol}")
+    print(f"   Period: {df.index[0]} ~ {df.index[-1]}")
+    return df, symbol
 
 
 def fetch_market_data(symbol: str = 'XRP/KRW', 
@@ -88,7 +118,16 @@ def fetch_market_data(symbol: str = 'XRP/KRW',
     
     print(f"✅ Fetched {len(df)} candles")
     print(f"   Period: {df.index[0]} ~ {df.index[-1]}")
-    
+
+    # Raw 데이터 저장
+    logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    timestamp_tag = datetime.now().strftime('%y%m%d%H%M')
+    safe_symbol = symbol.replace('/', '_')
+    raw_path = os.path.join(logs_dir, f"raw_{safe_symbol}_{timeframe}_{timestamp_tag}.csv")
+    df.to_csv(raw_path, encoding='utf-8')
+    print(f"💾 Raw data saved → {raw_path}")
+
     return df
 
 
@@ -273,7 +312,9 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
     print(f"   Strategy Return: {performance['return_pct']:+.2f}%")
     print(f"   Buy & Hold Return: {buy_hold_return:+.2f}%")
     print(f"   Outperformance: {(performance['return_pct'] - buy_hold_return):+.2f}%")
-    return performance, buy_hold_return
+
+    trade_pnls = [round(t['profit'], 2) for t in portfolio.trade_history if t['type'] == 'SELL']
+    return performance, buy_hold_return, trade_pnls
 
 def main():
     """메인 함수"""
@@ -282,14 +323,20 @@ def main():
     print("="*70)
     
     # 설정
-    SYMBOL = 'XRP/KRW'
     TIMEFRAME = '1m'
     LIMIT = 400
-    INITIAL_BALANCE = 1_000_000  # KRW (1,000,000원 = 약 $700 상당의 현실적 테스트 자금)
+    INITIAL_BALANCE = 1_000_000  # KRW
+
+    # CSV 파일 경로가 인자로 전달된 경우 fetch 대신 로드
+    csv_path = sys.argv[1] if len(sys.argv) >= 2 else None
     
     try:
         # 1. 시장 데이터 가져오기
-        df = fetch_market_data(SYMBOL, TIMEFRAME, LIMIT)
+        if csv_path:
+            df, SYMBOL = load_from_csv(csv_path)
+        else:
+            SYMBOL = 'XRP/KRW'
+            df = fetch_market_data(SYMBOL, TIMEFRAME, LIMIT)
 
         # 2. 전략 인스턴스 생성 (단일 정의 — 시그널 분석과 백테스트 모두 동일 인스턴스 사용)
         #    ※ 파라미터를 변경할 때는 이 한 곳만 수정하면 됩니다.
@@ -307,21 +354,25 @@ def main():
 
         # 4. 백테스트 시뮬레이션 (위와 동일한 인스턴스 재사용 — 파라미터 불일치 원천 차단)
         summary = []  # 전략별 결과 수집
+        all_trade_pnls = []
         for strategy in strategies:
             print("\n\n")
             print("="*70)
             print(f"  Running Backtest: {strategy.name}")
             print("="*70)
-            perf, bhr = run_backtest_simulation(strategy, df, SYMBOL, INITIAL_BALANCE)
+            perf, bhr, pnls = run_backtest_simulation(strategy, df, SYMBOL, INITIAL_BALANCE)
             summary.append({
                 'name': strategy.name,
                 'trades': perf['total_trades'],
-                'win_rate': perf['win_rate'],
-                'profit': perf['total_profit'],
-                'return_pct': perf['return_pct'],
-                'outperformance': perf['return_pct'] - bhr,
+                'wins': perf.get('winning_trades', 0),
+                'losses': perf.get('losing_trades', 0),
+                'win_rate': perf.get('win_rate', 0.0),
+                'profit': perf.get('total_profit', 0.0),
+                'return_pct': perf.get('return_pct', 0.0),
+                'outperformance': perf.get('return_pct', 0.0) - bhr,
                 'buy_hold_return': bhr,
             })
+            all_trade_pnls.append(pnls)
 
         # 5. 전략별 결과 요약
         print("\n\n")
@@ -341,6 +392,47 @@ def main():
             bhr_val = summary[0]['buy_hold_return']
             print(f"  {'Buy & Hold':22} {'':>5} {'':>8} {'':>12} {bhr_val:>+7.2f}%")
         
+        # JSON 결과 저장
+        _logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+        os.makedirs(_logs_dir, exist_ok=True)
+        _timestamp_tag = datetime.now().strftime('%y%m%d%H%M')
+        _json_path = os.path.join(_logs_dir, f"backtest_{_timestamp_tag}.json")
+
+        _df_ind = calculate_all_indicators(df.copy())
+        _indicators = {'Current Price': float(df['close'].iloc[-1])}
+        for _key, _col in [('RSI(14)', 'rsi_14'), ('MACD', 'macd'),
+                            ('MACD Signal', 'macd_signal'), ('MACD Hist', 'macd_histogram'),
+                            ('SMA(20)', 'sma_20'), ('SMA(50)', 'sma_50')]:
+            if _col in _df_ind.columns:
+                _indicators[_key] = round(float(_df_ind[_col].iloc[-1]), 4)
+
+        _result = {
+            'symbol': SYMBOL,
+            'period': f"{df.index[0].strftime('%Y-%m-%d %H:%M')} ~ {df.index[-1].strftime('%Y-%m-%d %H:%M')}",
+            'initial_balance': INITIAL_BALANCE,
+            'buy_and_hold_return': round(summary[0]['buy_hold_return'], 4) if summary else 0.0,
+            'strategies': {
+                r['name']: {
+                    'trades': r['trades'],
+                    'wins': r['wins'],
+                    'losses': r['losses'],
+                    'return_pct': round(r['return_pct'], 4),
+                    'profit': round(r['profit'], 2),
+                    'vs_bh': round(r['outperformance'], 4),
+                }
+                for r in summary
+            },
+            'trade_pnl': {
+                r['name']: pnls
+                for r, pnls in zip(summary, all_trade_pnls)
+            },
+            'current_indicators': _indicators,
+        }
+
+        with open(_json_path, 'w', encoding='utf-8') as _f:
+            json.dump(_result, _f, indent=2, ensure_ascii=False)
+        print(f"\n💾 Backtest results saved → {_json_path}")
+
         print("\n" + "="*70)
         print("  ✅ All tests completed successfully!")
         print("="*70)
