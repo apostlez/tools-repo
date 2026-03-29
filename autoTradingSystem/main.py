@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.trading_bot import TradingBot
 from src.risk_manager import RiskManager
 from src.strategies import RSIStrategy, MACDStrategy, MovingAverageCrossStrategy, OBVStrategy, RSIOBVStrategy
+from src.strategies.custom_strategies import MACDRSIOBVStrategy
 from config.trading_config import (
     EXCHANGE_CONFIG,
     TRADING_CONFIG,
@@ -181,6 +182,17 @@ def create_strategy():
             obv_ma_period=params['obv_ma_period'],
             obv_weight=params['obv_weight']
         )
+    elif strategy_name == 'MACDRSIOBVStrategy':
+        params = STRATEGY_CONFIG['macd_rsi_obv']
+        strategy = MACDRSIOBVStrategy(
+            macd_fast=params['macd_fast'],
+            macd_slow=params['macd_slow'],
+            macd_signal=params['macd_signal'],
+            rsi_period=params['rsi_period'],
+            rsi_buy_threshold=params['rsi_buy_threshold'],
+            rsi_sell_threshold=params['rsi_sell_threshold'],
+            obv_ma_period=params['obv_ma_period'],
+        )
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
     
@@ -225,6 +237,8 @@ def print_configuration():
         print(f"   Parameters: {STRATEGY_CONFIG['obv']}")
     elif STRATEGY_CONFIG['name'] == 'RSIOBVStrategy':
         print(f"   Parameters: {STRATEGY_CONFIG['rsi_obv']}")
+    elif STRATEGY_CONFIG['name'] == 'MACDRSIOBVStrategy':
+        print(f"   Parameters: {STRATEGY_CONFIG['macd_rsi_obv']}")
     
     print("\n🛡️  Risk Management:")
     print(f"   Max Position Size: {RISK_CONFIG['max_position_size']*100:.0f}%")

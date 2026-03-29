@@ -202,9 +202,19 @@ STRATEGY_NAME=RSIOBVStrategy   # RSI+OBV 복합 전략 (기본)
 # STRATEGY_NAME=MACDStrategy
 # STRATEGY_NAME=MovingAverageCrossStrategy
 # STRATEGY_NAME=OBVStrategy
+# STRATEGY_NAME=MACDRSIOBVStrategy   # 1분봉 최적화 전략
 
 # RSI+OBV 전용 파라미터
 OBV_WEIGHT=0.5    # OBV 가중치 (0.0 ~ 1.0)
+
+# MACD+RSI+OBV 전용 파라미터 (1분봉 최적화)
+MACD_RSI_OBV_FAST=8
+MACD_RSI_OBV_SLOW=21
+MACD_RSI_OBV_SIGNAL=5
+MACD_RSI_OBV_RSI_P=9
+MACD_RSI_OBV_BUY=55.0
+MACD_RSI_OBV_SELL=65.0
+MACD_RSI_OBV_OBV_MA=10
 ```
 
 ### 테스트 내용
@@ -261,7 +271,67 @@ class MyCustomStrategy(BaseStrategy):
 2. **`config/trading_config.py`** — `STRATEGY_CONFIG` 에 파라미터 섹션 추가
 3. **`main.py`** — `create_strategy()` 와 `print_configuration()` 에 분기 추가
 
-> **구현 예시**: `RSIOBVStrategy` (`src/strategies/custom_strategies.py`) 참고
+> **구현 예시**: `RSIOBVStrategy`, `MACDRSIOBVStrategy` (`src/strategies/custom_strategies.py`) 참고
+
+---
+
+### 6. MACD + RSI + OBV Strategy (골든 크로스 복합 전략) ⭐ Custom
+
+> **상세 분석**: [docs/MACD_RSI_OBV_analysis.md](MACD_RSI_OBV_analysis.md)
+
+**전략 설명:**
+- MACD Golden Cross를 기본 진입 트리거로 사용하고, RSI와 OBV로 이중 필터를 적용하는 3중 복합 전략
+- 1분봉 단기 트레이딩에 최적화된 파라미터로, XRP/KRW raw 데이터에서 7시간 동안 정확히 7번의 매수 시그널을 생성함을 검증
+
+**시그널 조건:**
+
+| 구분 | 조건 | 설명 |
+|------|------|------|
+| **BUY** | MACD Golden Cross | MACD 라인이 Signal 라인 위로 교차 |
+| **BUY** | RSI < 55 | 과매수 아님 + 모멘텀 전환 확인 |
+| **BUY** | OBV_MA 상승 | 매수세 유입 확인 (3가지 모두 충족 시 BUY) |
+| **SELL** | RSI > 65 | 과매수 영역 진입 |
+| **SELL** | OBV_MA 하락 | 매도세 우위 (2가지 모두 충족 시 SELL) |
+
+**파라미터 (1분봉 최적화):**
+```python
+MACDRSIOBVStrategy(
+    macd_fast=8,             # MACD 빠른 EMA (기본: 8)
+    macd_slow=21,            # MACD 느린 EMA (기본: 21)
+    macd_signal=5,           # Signal EMA (기본: 5)
+    rsi_period=9,            # RSI 기간 (기본: 9)
+    rsi_buy_threshold=55.0,  # 매수 허용 RSI 상한 (기본: 55)
+    rsi_sell_threshold=65.0, # 매도 기준 RSI (기본: 65)
+    obv_ma_period=10,        # OBV 이동평균 기간 (기본: 10)
+)
+```
+
+**검증 결과 (XRP/KRW 1분봉, 2026-03-28):**
+
+| # | 시각 | 가격 | RSI | 특이사항 |
+|---|------|------|-----|---------|
+| BUY 1 | 13:05 | 2,030 | 50.0 | 대형 Surge 35분 전 선진입 |
+| BUY 2 | 14:13 | 2,046 | 54.5 | Surge 후 조정 완료 반등 |
+| BUY 3 | 15:57 | 2,050 | 44.4 | 2차 급등 후 되돌림 반등 |
+| BUY 4 | 16:42 | 2,048 | 50.0 | 중반 횡보 바닥 반등 |
+| BUY 5 | 17:44 | 2,042 | 50.0 | 하락 속 단기 바닥 |
+| BUY 6 | 18:18 | 2,041 | 50.0 | 후반 회복 구간 |
+| BUY 7 | 18:30 | 2,040 | 40.0 | 과매도 반등 |
+
+**적합한 시장:**
+- 1분봉 단기 트레이딩
+- 거래량이 뒷받침되는 모멘텀 반전 구간
+- Surge(대형 급등) 전 선진입이 필요한 경우
+
+**장점:**
+- 3중 필터로 허위 시그널 최소화
+- 거래량(OBV)으로 가격 움직임의 진정성 확인
+- Golden Cross 기반으로 추세 전환 시점 포착
+
+**단점:**
+- RSI 임계값(55)이 보수적이어 급등 직전 구간을 간발 차로 놓칠 수 있음
+- 1분봉 전용 파라미터 — 5분봉 이상에서는 재최적화 필요
+- 연속 매도 시그널 발생 시 노이즈 유의
 
 ---
 

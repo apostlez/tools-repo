@@ -101,6 +101,18 @@ STRATEGY_CONFIG = {
         'rsi_period': get_env_int('RSI_PERIOD', 14),
         'obv_ma_period': get_env_int('OBV_MA_PERIOD', 20),
         'obv_weight': get_env_float('OBV_WEIGHT', 0.5)
+    },
+
+    # MACD + RSI + OBV Strategy Parameters  ← 1분봉 최적화 파라미터
+    # 분석 근거: docs/MACD_RSI_OBV_analysis.md
+    'macd_rsi_obv': {
+        'macd_fast':          get_env_int('MACD_RSI_OBV_FAST',      8),    # EMA fast (기본: 8)
+        'macd_slow':          get_env_int('MACD_RSI_OBV_SLOW',     21),    # EMA slow (기본: 21)
+        'macd_signal':        get_env_int('MACD_RSI_OBV_SIGNAL',    5),    # Signal EMA (기본: 5)
+        'rsi_period':         get_env_int('MACD_RSI_OBV_RSI_P',     9),    # RSI 기간 (기본: 9)
+        'rsi_buy_threshold':  get_env_float('MACD_RSI_OBV_BUY',  55.0),   # 매수 RSI 상한 (기본: 55)
+        'rsi_sell_threshold': get_env_float('MACD_RSI_OBV_SELL', 65.0),   # 매도 RSI 기준 (기본: 65)
+        'obv_ma_period':      get_env_int('MACD_RSI_OBV_OBV_MA',   10),   # OBV MA 기간 (기본: 10)
     }
 }
 

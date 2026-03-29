@@ -30,7 +30,7 @@ from src.strategies import (
     SignalType,
     PortfolioManager
 )
-from src.strategies.custom_strategies import RSIOBVStrategy
+from src.strategies.custom_strategies import RSIOBVStrategy, MACDRSIOBVStrategy
 
 # 환경 변수 로드
 load_dotenv()
@@ -207,7 +207,11 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
     
     # 지표 계산
     df_with_indicators = calculate_all_indicators(df.copy())
-    
+
+    # 전략에 precompute 메서드가 있으면 전체 데이터로 미리 계산 (EWM 수렴 보장)
+    if hasattr(strategy, 'precompute'):
+        strategy.precompute(df_with_indicators)
+
     # 포트폴리오 매니저
     portfolio = PortfolioManager(initial_balance)
     
@@ -217,7 +221,13 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
     print(f"\n🔄 Running backtest...")
     
     # 각 시점마다 시그널 확인 및 거래 실행
-    for i in range(50, len(df_with_indicators)):  # 충분한 데이터 확보 후 시작
+    # 전략의 최소 필요 봉 수를 기준으로 start_idx 결정
+    # - min_bars() 가 있으면 해당 값, 없으면 전체의 5% 또는 최소 50봉
+    if hasattr(strategy, 'min_bars') and callable(strategy.min_bars):
+        start_idx = max(2, strategy.min_bars())
+    else:
+        start_idx = max(50, len(df_with_indicators) // 20)
+    for i in range(start_idx, len(df_with_indicators)):  # 충분한 데이터 확보 후 시작
         current_df = df_with_indicators.iloc[:i+1]
         signal = strategy.analyze(current_df, symbol)
         
@@ -341,11 +351,20 @@ def main():
         # 2. 전략 인스턴스 생성 (단일 정의 — 시그널 분석과 백테스트 모두 동일 인스턴스 사용)
         #    ※ 파라미터를 변경할 때는 이 한 곳만 수정하면 됩니다.
         strategies = [
-            RSIStrategy(oversold=30, overbought=70),
+            RSIStrategy(oversold=40, overbought=70),
             MACDStrategy(),
             MovingAverageCrossStrategy(fast_period=20, slow_period=50),
-            OBVStrategy(obv_ma_period=20, divergence_lookback=5),
-            RSIOBVStrategy(oversold=30, overbought=70, obv_weight=0.7),
+            OBVStrategy(obv_ma_period=14, divergence_lookback=5),
+            RSIOBVStrategy(oversold=40, overbought=70, obv_weight=0.7),
+            MACDRSIOBVStrategy(
+                macd_fast=8,
+                macd_slow=21,
+                macd_signal=5,
+                rsi_period=9,
+                rsi_buy_threshold=55.0,
+                rsi_sell_threshold=65.0,
+                obv_ma_period=10,
+            ),
         ]
 
         # 3. 각 전략 시그널 분석

@@ -14,7 +14,7 @@ autoTradingSystem/
 │       ├── __init__.py
 │       ├── base_strategy.py
 │       ├── sample_strategies.py
-│       └── custom_strategies.py
+│       └── custom_strategies.py  # RSIOBVStrategy, MACDRSIOBVStrategy
 ├── config/                  # 설정 파일
 │   └── trading_config.py
 ├── docs/                    # 문서 및 가이드
@@ -23,13 +23,17 @@ autoTradingSystem/
 │   ├── BACKTEST_GUIDE.md
 │   ├── CONFIG_GUIDE.md
 │   ├── strategies_guide.md
+│   ├── MACD_RSI_OBV_analysis.md  # MACDRSIOBVStrategy 분석 결과
 │   ├── plan-autoTradingSystem.prompt.md
 │   └── test_result.md
 ├── tests/                   # 테스트 스크립트
 │   ├── test_binance_api.py
 │   ├── test_upbit_api.py
 │   ├── test_strategy.py
-│   └── debug_api.py
+│   ├── debug_api.py
+│   ├── verify_macd_rsi_obv.py  # 7회 매수 검증
+│   ├── debug_no_buy.py          # 구간별 미발생 원인 분석
+│   └── analyze_signals.py       # 파라미터 탐색
 ├── logs/                    # 로그 파일
 ├── .env                     # 환경 변수 (API 키)
 ├── .env.example             # 환경 변수 템플릿
@@ -153,13 +157,19 @@ python main.py
    - RSIStrategy (RSI 기반 전략)
    - MACDStrategy (MACD 크로스오버 전략)
    - MovingAverageCrossStrategy (이동평균선 교차 전략)
-   - PortfolioManager (포트폴리오 관리)
+   - OBVStrategy (거래량 기반 전략)
+   - RSIOBVStrategy (RSI+OBV 복합 가중치 전략)
+   - **MACDRSIOBVStrategy** (MACD 골든 크로스 + RSI + OBV 3중 필터 전략 ⭐ 최신)
+     - 1분봉 최적화 파라미터 (MACD:8/21/5, RSI:9, OBV_MA:10)
+     - XRP/KRW 7시간 데이터에서 정확히 7번 매수 시그널 검증
+     - 상세 분석: [docs/MACD_RSI_OBV_analysis.md](docs/MACD_RSI_OBV_analysis.md)
 
 5. **백테스팅**
    - 과거 데이터로 전략 검증 (최대 1000 캔들)
-   - 전략별 시그널 분석 (RSI, MACD, MA Cross, OBV, RSI+OBV)
+   - 전략별 시그널 분석 (RSI, MACD, MA Cross, OBV, RSI+OBV, **MACD+RSI+OBV**)
    - 성과 분석 (승률, 수익률, 거래 통계)
    - Buy & Hold 대비 성과 비교
+   - CSV 파일 기반 오프라인 백테스트 지원 (`python tests/test_strategy.py <csv_path>`)
    - 자세한 내용: [docs/BACKTEST_GUIDE.md](docs/BACKTEST_GUIDE.md)
 
 ### ✅ 최근 완료
