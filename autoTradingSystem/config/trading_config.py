@@ -54,11 +54,11 @@ EXCHANGE_CONFIG = {
 # Trading Pair Configuration
 # ============================================
 TRADING_CONFIG = {
-#    'symbol': os.getenv('TRADING_SYMBOL', 'BTC/USDT'),  # 거래 쌍
-    'symbol': os.getenv('TRADING_SYMBOL', 'XRP/USDT'),  # 거래 쌍
+#    'symbol': os.getenv('TRADING_SYMBOL', 'BTC/KRW'),  # 거래 쌍
+    'symbol': os.getenv('TRADING_SYMBOL', 'XRP/KRW'),  # 거래 쌍
     'timeframe': os.getenv('TRADING_TIMEFRAME', '15m'),  # 시간 프레임 (1m, 5m, 15m, 1h, 4h, 1d)
     'update_interval': get_env_int('UPDATE_INTERVAL', 60),  # 업데이트 주기 (초)
-    'initial_balance': get_env_float('INITIAL_BALANCE', 10000),  # 초기 자본 (USDT) - dry_run 모드에서만 사용
+    'initial_balance': get_env_float('INITIAL_BALANCE', 10000),  # 초기 자본 (KRW) - dry_run 모드에서만 사용
     'dry_run': get_env_bool('DRY_RUN', True),  # True: 시뮬레이션, False: 실제 거래 ⚠️
 }
 

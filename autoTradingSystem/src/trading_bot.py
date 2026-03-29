@@ -57,6 +57,7 @@ class TradingBot:
         self.update_interval = config.get('update_interval', 60)
         self.initial_balance = config.get('initial_balance', 10000)
         self.dry_run = config.get('dry_run', True)
+        self.quote_currency = self.symbol.split('/')[1]  # 'XRP/KRW' → 'KRW'
         
         # 상태 관리
         self.is_running = False
@@ -99,14 +100,15 @@ class TradingBot:
         현재 잔액 조회
         
         Returns:
-            사용 가능한 USDT 잔액
+            사용 가능한 Quote 통화 잔액 (예: KRW, USDT)
         """
         if self.dry_run:
             return self.balance
         
         try:
+            quote_currency = self.symbol.split('/')[1]  # 'XRP/KRW' → 'KRW'
             balance = self.exchange.fetch_balance()
-            return balance['free']['USDT']
+            return balance['free'].get(quote_currency, 0.0)
         except Exception as e:
             self.logger.error(f"Failed to fetch balance: {e}")
             return 0.0
@@ -163,7 +165,7 @@ class TradingBot:
                 self.logger.error(f"❌ Failed to execute BUY order: {e}")
                 return
         else:
-            self.logger.info(f"🔵 [DRY RUN] BUY {amount:.6f} {self.symbol} @ ${current_price:,.2f}")
+            self.logger.info(f"🔵 [DRY RUN] BUY {amount:.6f} {self.symbol} @ {current_price:,.2f} {self.quote_currency}")
         
         # 포지션 정보 저장
         cost = amount * current_price
@@ -194,9 +196,9 @@ class TradingBot:
         })
         
         self.logger.info(
-            f"🟢 Position opened: {amount:.6f} {self.symbol} @ ${current_price:,.2f}\n"
-            f"   Stop Loss: ${stop_loss:,.2f}, Take Profit: ${take_profit:,.2f}\n"
-            f"   Balance: ${self.get_balance():,.2f}"
+            f"🟢 Position opened: {amount:.6f} {self.symbol} @ {current_price:,.2f} {self.quote_currency}\n"
+            f"   Stop Loss: {stop_loss:,.2f} {self.quote_currency}, Take Profit: {take_profit:,.2f} {self.quote_currency}\n"
+            f"   Balance: {self.get_balance():,.2f} {self.quote_currency}"
         )
     
     def close_position(self, symbol: str, current_price: float, reason: str = "Signal"):
@@ -225,7 +227,7 @@ class TradingBot:
                 self.logger.error(f"❌ Failed to execute SELL order: {e}")
                 return
         else:
-            self.logger.info(f"🔵 [DRY RUN] SELL {amount:.6f} {symbol} @ ${current_price:,.2f}")
+            self.logger.info(f"🔵 [DRY RUN] SELL {amount:.6f} {symbol} @ {current_price:,.2f} {self.quote_currency}")
         
         # 손익 계산
         revenue = amount * current_price
@@ -258,10 +260,10 @@ class TradingBot:
         
         emoji = "🟢" if profit > 0 else "🔴"
         self.logger.info(
-            f"{emoji} Position closed: {amount:.6f} {symbol} @ ${current_price:,.2f}\n"
-            f"   Entry: ${entry_price:,.2f}, Profit: ${profit:,.2f} ({profit_pct:+.2f}%)\n"
+            f"{emoji} Position closed: {amount:.6f} {symbol} @ {current_price:,.2f} {self.quote_currency}\n"
+            f"   Entry: {entry_price:,.2f} {self.quote_currency}, Profit: {profit:,.2f} {self.quote_currency} ({profit_pct:+.2f}%)\n"
             f"   Reason: {reason}\n"
-            f"   Balance: ${self.get_balance():,.2f}"
+            f"   Balance: {self.get_balance():,.2f} {self.quote_currency}"
         )
     
     def check_position_exit(self, symbol: str, current_price: float, highest_price: float):
@@ -319,7 +321,7 @@ class TradingBot:
             signal = self.strategy.analyze(df, self.symbol)
             
             self.logger.info(
-                f"📊 {self.symbol}: ${current_price:,.2f} | "
+                f"📊 {self.symbol}: {current_price:,.2f} {self.quote_currency} | "
                 f"Signal: {signal.signal_type.value} ({signal.strength:.2%}) | "
                 f"{signal.reason}"
             )
@@ -349,7 +351,7 @@ class TradingBot:
         self.logger.info(f"Timeframe: {self.timeframe}")
         self.logger.info(f"Strategy: {self.strategy.name}")
         self.logger.info(f"Update Interval: {self.update_interval}s")
-        self.logger.info(f"Initial Balance: ${self.initial_balance:,.2f}")
+        self.logger.info(f"   Initial Balance: {self.initial_balance:,.2f} {self.quote_currency}")
         self.logger.info(f"Mode: {'DRY RUN (Simulation)' if self.dry_run else 'LIVE TRADING ⚠️'}")
         self.logger.info("="*70)
         
@@ -406,7 +408,7 @@ class TradingBot:
         
         if total_trades == 0:
             self.logger.info("📊 No completed trades yet")
-            self.logger.info(f"   Current Balance: ${self.get_balance():,.2f}")
+            self.logger.info(f"   Current Balance: {self.get_balance():,.2f} {self.quote_currency}")
             self.logger.info(f"   Open Positions: {len(self.positions)}")
             return
         
@@ -425,13 +427,13 @@ class TradingBot:
         self.logger.info(f"   Total Trades: {total_trades}")
         self.logger.info(f"   Winning: {len(winning_trades)}, Losing: {len(profits) - len(winning_trades)}")
         self.logger.info(f"   Win Rate: {win_rate:.2f}%")
-        self.logger.info(f"   Total Profit: ${total_profit:,.2f}")
-        self.logger.info(f"   Initial Balance: ${self.initial_balance:,.2f}")
-        self.logger.info(f"   Current Balance: ${current_balance:,.2f}")
+        self.logger.info(f"   Total Profit: {total_profit:,.2f} {self.quote_currency}")
+        self.logger.info(f"   Initial Balance: {self.initial_balance:,.2f} {self.quote_currency}")
+        self.logger.info(f"   Current Balance: {current_balance:,.2f} {self.quote_currency}")
         self.logger.info(f"   Total Return: {total_return:+.2f}%")
         self.logger.info(f"   Open Positions: {len(self.positions)}")
         
         if profits:
-            self.logger.info(f"   Average Profit: ${sum(profits)/len(profits):,.2f}")
-            self.logger.info(f"   Best Trade: ${max(profits):,.2f}")
-            self.logger.info(f"   Worst Trade: ${min(profits):,.2f}")
+            self.logger.info(f"   Average Profit: {sum(profits)/len(profits):,.2f} {self.quote_currency}")
+            self.logger.info(f"   Best Trade: {max(profits):,.2f} {self.quote_currency}")
+            self.logger.info(f"   Worst Trade: {min(profits):,.2f} {self.quote_currency}")
