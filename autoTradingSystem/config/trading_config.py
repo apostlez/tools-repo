@@ -135,8 +135,7 @@ RISK_CONFIG = {
 LOGGING_CONFIG = {
     'level': os.getenv('LOG_LEVEL', 'INFO'),  # DEBUG, INFO, WARNING, ERROR
     'file': os.getenv('LOG_FILE', 'logs/trading_bot.log'),
-    'max_bytes': get_env_int('LOG_MAX_BYTES', 10 * 1024 * 1024),  # 10MB
-    'backup_count': get_env_int('LOG_BACKUP_COUNT', 5),
+    'backup_days': get_env_int('LOG_BACKUP_DAYS', 30),  # 보관 일수 (기본 30일)
     'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     'date_format': '%Y-%m-%d %H:%M:%S'
 }

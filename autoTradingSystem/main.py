@@ -7,7 +7,7 @@ import os
 import sys
 import ccxt
 import logging
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 from dotenv import load_dotenv
 
 # 프로젝트 경로 추가
@@ -56,13 +56,19 @@ def setup_logging():
     )
     console_handler.setFormatter(console_formatter)
     
-    # 파일 핸들러 (로테이팅, UTF-8 인코딩)
-    file_handler = RotatingFileHandler(
+    # 파일 핸들러 (날짜별 로테이팅, UTF-8 인코딩)
+    # - when='midnight': 자정마다 새 파일로 롤오버
+    # - backupCount: 보관 일수 (오래된 파일 자동 삭제)
+    # - suffix: 롤오버된 파일명에 날짜 접미사 추가 (예: trading_bot.log.2026-04-03)
+    file_handler = TimedRotatingFileHandler(
         LOGGING_CONFIG['file'],
-        maxBytes=LOGGING_CONFIG['max_bytes'],
-        backupCount=LOGGING_CONFIG['backup_count'],
-        encoding='utf-8'
+        when='midnight',
+        interval=1,
+        backupCount=LOGGING_CONFIG['backup_days'],
+        encoding='utf-8',
+        utc=False
     )
+    file_handler.suffix = '%Y-%m-%d'
     file_handler.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter(
         LOGGING_CONFIG['format'],

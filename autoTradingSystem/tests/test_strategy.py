@@ -13,6 +13,7 @@ if sys.stderr.encoding != 'utf-8':
     sys.stderr.reconfigure(encoding='utf-8')
 
 import json
+import time
 import ccxt
 import pandas as pd
 from datetime import datetime, timedelta
@@ -34,6 +35,35 @@ from src.strategies.custom_strategies import RSIOBVStrategy, MACDRSIOBVStrategy
 
 # 환경 변수 로드
 load_dotenv()
+
+_RETRYABLE_ERRORS = (
+    ccxt.NetworkError,
+    ccxt.RequestTimeout,
+    ccxt.ExchangeNotAvailable,
+    ccxt.DDoSProtection,
+)
+
+
+def _fetch_with_retry(fn, *args, max_retries: int = 3, base_delay: float = 5.0, **kwargs):
+    """
+    네트워크 오류 시 지수 백오프(exponential backoff)로 재시도
+
+    재시도 대상: NetworkError, RequestTimeout, ExchangeNotAvailable, DDoSProtection
+    대기 시간: base_delay × 2^(attempt-1)  →  5s, 10s, 20s
+    """
+    last_exc = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except _RETRYABLE_ERRORS as e:
+            last_exc = e
+            delay = base_delay * (2 ** (attempt - 1))
+            print(f"⚠️  Network error (attempt {attempt}/{max_retries}): {e} — retrying in {delay:.0f}s...")
+            time.sleep(delay)
+        except Exception:
+            raise
+    print(f"❌ All {max_retries} retries exhausted: {last_exc}")
+    raise last_exc
 
 
 def load_from_csv(csv_path: str) -> tuple[pd.DataFrame, str]:
@@ -95,13 +125,13 @@ def fetch_market_data(symbol: str = 'XRP/KRW',
     timeframe_ms = exchange.parse_timeframe(timeframe) * 1000
 
     # 첫 번째 요청: since 없이 호출 → Upbit가 가장 최신 캔들 반환
-    all_ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=BATCH)
+    all_ohlcv = _fetch_with_retry(exchange.fetch_ohlcv, symbol, timeframe, limit=BATCH)
 
     # limit > 200 이면 더 과거 배치를 이어서 수집
     while len(all_ohlcv) < limit:
         oldest_ts = all_ohlcv[0][0]
         since = oldest_ts - BATCH * timeframe_ms
-        batch = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=BATCH)
+        batch = _fetch_with_retry(exchange.fetch_ohlcv, symbol, timeframe, since=since, limit=BATCH)
         # 중복 제거: 이미 가진 것보다 과거 데이터만 유지
         batch = [c for c in batch if c[0] < oldest_ts]
         if not batch:

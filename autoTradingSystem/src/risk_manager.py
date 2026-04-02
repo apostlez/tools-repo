@@ -73,6 +73,20 @@ class RiskManager:
         
         return amount
     
+    def _compute_stop_loss(self, entry_price: float, is_long: bool = True) -> float:
+        """로그 없이 손절 가격만 계산 (내부 로직용)"""
+        if is_long:
+            return entry_price * (1 - self.stop_loss_pct)
+        else:
+            return entry_price * (1 + self.stop_loss_pct)
+
+    def _compute_take_profit(self, entry_price: float, is_long: bool = True) -> float:
+        """로그 없이 익절 가격만 계산 (내부 로직용)"""
+        if is_long:
+            return entry_price * (1 + self.take_profit_pct)
+        else:
+            return entry_price * (1 - self.take_profit_pct)
+
     def calculate_stop_loss(self, entry_price: float, is_long: bool = True) -> float:
         """
         손절매 가격 계산
@@ -137,7 +151,7 @@ class RiskManager:
         Returns:
             손절매 실행 여부
         """
-        stop_loss_price = self.calculate_stop_loss(entry_price, is_long)
+        stop_loss_price = self._compute_stop_loss(entry_price, is_long)
         
         if is_long:
             should_stop = current_price <= stop_loss_price
@@ -166,7 +180,7 @@ class RiskManager:
         Returns:
             익절 실행 여부
         """
-        take_profit_price = self.calculate_take_profit(entry_price, is_long)
+        take_profit_price = self._compute_take_profit(entry_price, is_long)
         
         if is_long:
             should_take = current_price >= take_profit_price
@@ -303,12 +317,12 @@ class RiskManager:
             # 롱: 최고가에서 일정 % 하락 시 매도
             trailing_stop = highest_price * (1 - trailing_pct)
             # 기본 손절매보다 높으면 사용
-            regular_stop = self.calculate_stop_loss(entry_price, is_long)
+            regular_stop = self._compute_stop_loss(entry_price, is_long)
             return max(trailing_stop, regular_stop)
         else:
             # 숏: 최저가에서 일정 % 상승 시 매수
             trailing_stop = highest_price * (1 + trailing_pct)
-            regular_stop = self.calculate_stop_loss(entry_price, is_long)
+            regular_stop = self._compute_stop_loss(entry_price, is_long)
             return min(trailing_stop, regular_stop)
     
     def get_config(self) -> Dict:

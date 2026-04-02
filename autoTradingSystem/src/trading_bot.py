@@ -83,8 +83,10 @@ class TradingBot:
             OHLCV DataFrame
         """
         try:
-            ohlcv = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, limit=limit)
-            
+            ohlcv = self._call_with_retry(
+                self.exchange.fetch_ohlcv, self.symbol, self.timeframe, limit=limit
+            )
+
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
@@ -107,7 +109,7 @@ class TradingBot:
         
         try:
             quote_currency = self.symbol.split('/')[1]  # 'XRP/KRW' → 'KRW'
-            balance = self.exchange.fetch_balance()
+            balance = self._call_with_retry(self.exchange.fetch_balance)
             return balance['free'].get(quote_currency, 0.0)
         except Exception as e:
             self.logger.error(f"Failed to fetch balance: {e}")
@@ -116,7 +118,37 @@ class TradingBot:
     def has_position(self, symbol: str) -> bool:
         """포지션 보유 여부 확인"""
         return symbol in self.positions and self.positions[symbol] is not None
-    
+
+    def _call_with_retry(self, fn, *args, max_retries: int = 3, base_delay: float = 5.0, **kwargs):
+        """
+        네트워크 오류 시 지수 백오프(exponential backoff)로 재시도
+
+        재시도 대상: NetworkError, RequestTimeout, ExchangeNotAvailable, DDoSProtection
+        대기 시간: base_delay × 2^(attempt-1)  →  5s, 10s, 20s
+        """
+        _retryable = (
+            ccxt.NetworkError,
+            ccxt.RequestTimeout,
+            ccxt.ExchangeNotAvailable,
+            ccxt.DDoSProtection,
+        )
+        last_exc = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                return fn(*args, **kwargs)
+            except _retryable as e:
+                last_exc = e
+                delay = base_delay * (2 ** (attempt - 1))
+                self.logger.warning(
+                    f"⚠️ Network error (attempt {attempt}/{max_retries}): {e} "
+                    f"— retrying in {delay:.0f}s..."
+                )
+                time.sleep(delay)
+            except Exception:
+                raise
+        self.logger.error(f"❌ All {max_retries} retries exhausted: {last_exc}")
+        raise last_exc
+
     def open_position(self, signal, current_price: float):
         """
         포지션 오픈 (매수)
@@ -157,9 +189,12 @@ class TradingBot:
             return
         
         # 주문 실행
+        cost = amount * current_price
         if not self.dry_run:
             try:
-                order = self.exchange.create_market_buy_order(self.symbol, amount)
+                # Upbit 시장가 매수는 KRW 금액(cost)으로 주문
+                self.exchange.options['createMarketBuyOrderRequiresPrice'] = False
+                order = self.exchange.create_market_buy_order(self.symbol, cost)
                 self.logger.info(f"✅ BUY order executed: {order}")
             except Exception as e:
                 self.logger.error(f"❌ Failed to execute BUY order: {e}")
@@ -168,7 +203,6 @@ class TradingBot:
             self.logger.info(f"🔵 [DRY RUN] BUY {amount:.6f} {self.symbol} @ {current_price:,.2f} {self.quote_currency}")
         
         # 포지션 정보 저장
-        cost = amount * current_price
         self.positions[self.symbol] = {
             'entry_price': current_price,
             'amount': amount,
@@ -201,6 +235,50 @@ class TradingBot:
             f"   Balance: {self.get_balance():,.2f} {self.quote_currency}"
         )
     
+    def _sync_position_from_exchange(self, symbol: str):
+        """
+        SELL 실패 시 거래소 실제 잔고를 조회해 내부 포지션 상태를 동기화
+
+        - 실제 잔고 == 0 : orphan 포지션 제거
+        - 실제 잔고 < tracked amount : 부분 매도 반영 (amount, cost 조정)
+        - 실제 잔고 >= tracked amount : 그대로 유지
+        """
+        if symbol not in self.positions:
+            return
+
+        base_currency = symbol.split('/')[0]  # 'XRP/KRW' → 'XRP'
+        try:
+            real_balance = self._call_with_retry(self.exchange.fetch_balance)
+            real_amount = real_balance['free'].get(base_currency, 0.0) + \
+                          real_balance['used'].get(base_currency, 0.0)
+        except Exception as e:
+            self.logger.error(f"Failed to fetch balance for sync: {e}")
+            return
+
+        tracked_amount = self.positions[symbol]['amount']
+        self.logger.info(
+            f"🔍 Balance sync [{base_currency}]: tracked={tracked_amount:.6f}, "
+            f"actual={real_amount:.6f}"
+        )
+
+        if real_amount < tracked_amount * 0.01:
+            # 실질적으로 보유량 없음 → orphan 포지션 제거
+            self.logger.warning(
+                f"⚠️ No {base_currency} balance on exchange. "
+                f"Removing orphaned position (tracked: {tracked_amount:.6f})."
+            )
+            del self.positions[symbol]
+        elif real_amount < tracked_amount * 0.99:
+            # 부분 체결 또는 외부 매도 → amount와 cost를 실제 잔고에 맞게 조정
+            ratio = real_amount / tracked_amount
+            self.positions[symbol]['amount'] = real_amount
+            self.positions[symbol]['cost'] *= ratio
+            self.logger.warning(
+                f"⚠️ Partial position detected for {symbol}. "
+                f"Adjusted amount: {tracked_amount:.6f} → {real_amount:.6f}"
+            )
+        # else: 잔고와 일치 → 유지
+
     def close_position(self, symbol: str, current_price: float, reason: str = "Signal"):
         """
         포지션 종료 (매도)
@@ -225,6 +303,7 @@ class TradingBot:
                 self.logger.info(f"✅ SELL order executed: {order}")
             except Exception as e:
                 self.logger.error(f"❌ Failed to execute SELL order: {e}")
+                self._sync_position_from_exchange(symbol)
                 return
         else:
             self.logger.info(f"🔵 [DRY RUN] SELL {amount:.6f} {symbol} @ {current_price:,.2f} {self.quote_currency}")

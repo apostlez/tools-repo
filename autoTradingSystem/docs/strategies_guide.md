@@ -342,4 +342,4 @@ MACDRSIOBVStrategy(
 3. ✅ 실시간 트레이딩 시스템 구현 → `main.py` + `src/trading_bot.py`
 4. ✅ 리스크 관리 모듈 추가 → `src/risk_manager.py`
 5. 📝 전략 파라미터 최적화 (백테스트 기반)
-6. 📊 성능 모니터링 및 알림 시스템
+6. 📊 성능 모니터링
