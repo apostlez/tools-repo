@@ -32,6 +32,7 @@ from src.strategies import (
     PortfolioManager
 )
 from src.strategies.custom_strategies import RSIOBVStrategy, MACDRSIOBVStrategy
+from config.trading_config import RISK_CONFIG
 
 # 환경 변수 로드
 load_dotenv()
@@ -223,18 +224,30 @@ def test_strategy(strategy, df: pd.DataFrame, symbol: str):
 
 def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_balance: float = 10000):
     """
-    간단한 백테스트 시뮬레이션
-    
+    백테스트 시뮬레이션 — 실제 봇(RiskManager)과 동일한 조건 적용:
+      - 포지션 사이즈: 잔액 × max_position_size × signal.strength
+      - Stop Loss / Take Profit: RISK_CONFIG 기준
+      - 수수료: TRADING_FEE (단방향)
+
     Args:
         strategy: 테스트할 전략
         df: 시장 데이터
         symbol: 거래 심볼
         initial_balance: 초기 자본
     """
+    # ── RISK_CONFIG 에서 봇과 동일한 파라미터 로드 ──────────────────
+    max_position_size = RISK_CONFIG.get('max_position_size', 0.1)
+    stop_loss_pct     = RISK_CONFIG.get('stop_loss_pct', 0.05)
+    take_profit_pct   = RISK_CONFIG.get('take_profit_pct', 0.10)
+    TRADING_FEE       = 0.0005  # Upbit taker fee 0.05%
+
     print(f"\n{'='*70}")
     print(f"  Backtest Simulation: {strategy.name}")
     print(f"{'='*70}")
-    
+    print(f"  ⚙️  Risk Config  | position_size={max_position_size*100:.0f}%  "
+          f"stop_loss={stop_loss_pct*100:.1f}%  take_profit={take_profit_pct*100:.1f}%  "
+          f"fee={TRADING_FEE*100:.3f}%")
+
     # 지표 계산
     df_with_indicators = calculate_all_indicators(df.copy())
 
@@ -244,32 +257,61 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
 
     # 포트폴리오 매니저
     portfolio = PortfolioManager(initial_balance)
-    
+
     print(f"\n💰 Initial Balance: {initial_balance:,.0f} KRW")
     print(f"📅 Period: {df.index[0]} ~ {df.index[-1]}")
     print(f"💱 Exchange: Upbit | Symbol: {symbol}")
     print(f"\n🔄 Running backtest...")
-    
+
     # 각 시점마다 시그널 확인 및 거래 실행
-    # 전략의 최소 필요 봉 수를 기준으로 start_idx 결정
-    # - min_bars() 가 있으면 해당 값, 없으면 전체의 5% 또는 최소 50봉
     if hasattr(strategy, 'min_bars') and callable(strategy.min_bars):
         start_idx = max(2, strategy.min_bars())
     else:
         start_idx = max(50, len(df_with_indicators) // 20)
-    for i in range(start_idx, len(df_with_indicators)):  # 충분한 데이터 확보 후 시작
+
+    for i in range(start_idx, len(df_with_indicators)):
         current_df = df_with_indicators.iloc[:i+1]
         signal = strategy.analyze(current_df, symbol)
-        
+
         current_price = current_df['close'].iloc[-1]
         current_time = current_df.index[-1]
-        
-        # 매수 시그널 & 포지션 없음
+
+        # ── Stop Loss / Take Profit 체크 (포지션 보유 중) ──────────
+        if portfolio.has_position(symbol):
+            pos = portfolio.positions[symbol]
+            entry_price = pos['entry_price']
+
+            stop_price   = entry_price * (1 - stop_loss_pct)
+            target_price = entry_price * (1 + take_profit_pct)
+
+            if current_price <= stop_price:
+                trade_pnl = (current_price - entry_price) * pos['amount']
+                pct = (current_price - entry_price) / entry_price * 100
+                portfolio.close_position(symbol, current_price * (1 - TRADING_FEE), current_time)
+                print(f"  🔴 STOP LOSS  | {current_time} | {current_price:,.2f} KRW")
+                print(f"       ❌ Trade P&L : {trade_pnl:>+,.0f} KRW  ({pct:+.2f}%)")
+                print(f"          Entry: {entry_price:,.2f} → SL: {stop_price:,.2f}")
+                continue
+
+            if current_price >= target_price:
+                trade_pnl = (current_price - entry_price) * pos['amount']
+                pct = (current_price - entry_price) / entry_price * 100
+                portfolio.close_position(symbol, current_price * (1 - TRADING_FEE), current_time)
+                print(f"  🔴 TAKE PROFIT | {current_time} | {current_price:,.2f} KRW")
+                print(f"       ✅ Trade P&L : {trade_pnl:>+,.0f} KRW  ({pct:+.2f}%)")
+                print(f"          Entry: {entry_price:,.2f} → TP: {target_price:,.2f}")
+                continue
+
+        # ── 매수 시그널 & 포지션 없음 ───────────────────────────────
         if signal.signal_type == SignalType.BUY and not portfolio.has_position(symbol):
-            # 전체 잔액의 95% 사용 (수수료 고려)
-            amount = (portfolio.balance * 0.95) / current_price
+            # 봇과 동일한 포지션 사이즈: 잔액 × max_position_size × signal.strength
+            invest = portfolio.balance * max_position_size * signal.strength
+            buy_price = current_price * (1 + TRADING_FEE)  # 수수료 적용
+            amount = invest / buy_price
+            if amount * buy_price > portfolio.balance:
+                continue  # 잔액 부족 건너뜀
             try:
-                portfolio.open_position(symbol, amount, current_price, current_time)
+                portfolio.open_position(symbol, amount, buy_price, current_time)
 
                 rsi_val = current_df['rsi_14'].iloc[-1] if 'rsi_14' in current_df.columns else float('nan')
                 obv_val = current_df['obv'].iloc[-1] if 'obv' in current_df.columns else float('nan')
@@ -278,38 +320,40 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
                 print(f"          Balance   : {portfolio.balance:,.0f} KRW (remaining after buy)")
                 print(f"          Reason    : {signal.reason}")
                 print(f"          Strength  : {signal.strength:.2%}")
+                print(f"          SL: {buy_price*(1-stop_loss_pct):,.2f}  TP: {buy_price*(1+take_profit_pct):,.2f}")
                 print(f"          RSI       : {rsi_val:.2f}" if not pd.isna(rsi_val) else "          RSI       : N/A")
                 print(f"          OBV       : {obv_val:,.0f}" if not pd.isna(obv_val) else "          OBV       : N/A")
-            except ValueError as e:
-                pass  # 잔액 부족 등
-        
-        # 매도 시그널 & 포지션 보유
+            except ValueError:
+                pass
+
+        # ── 매도 시그널 & 포지션 보유 ───────────────────────────────
         elif signal.signal_type == SignalType.SELL and portfolio.has_position(symbol):
             pos = portfolio.positions[symbol]
             entry_price = pos['entry_price']
             amount = pos['amount']
-            trade_pnl = (current_price - entry_price) * amount
-            price_change_pct = (current_price - entry_price) / entry_price * 100
+            sell_price = current_price * (1 - TRADING_FEE)
+            trade_pnl = (sell_price - entry_price) * amount
+            price_change_pct = (sell_price - entry_price) / entry_price * 100
             result_icon = "✅" if trade_pnl >= 0 else "❌"
 
-            portfolio.close_position(symbol, current_price, current_time)
+            portfolio.close_position(symbol, sell_price, current_time)
 
             rsi_val = current_df['rsi_14'].iloc[-1] if 'rsi_14' in current_df.columns else float('nan')
             obv_val = current_df['obv'].iloc[-1] if 'obv' in current_df.columns else float('nan')
 
             print(f"  🔴 SELL | {current_time} | {current_price:,.2f} KRW")
             print(f"       {result_icon} Trade P&L : {trade_pnl:>+,.0f} KRW  ({price_change_pct:+.2f}%)")
-            print(f"          Entry     : {entry_price:,.2f} KRW → Exit: {current_price:,.2f} KRW")
+            print(f"          Entry     : {entry_price:,.2f} KRW → Exit: {sell_price:,.2f} KRW")
             print(f"          Reason    : {signal.reason}")
             print(f"          RSI       : {rsi_val:.2f}" if not pd.isna(rsi_val) else "          RSI       : N/A")
             print(f"          OBV       : {obv_val:,.0f}" if not pd.isna(obv_val) else "          OBV       : N/A")
 
-    # 남은 포지션 정리
+    # 남은 포지션 정리 (강제 청산)
     if portfolio.has_position(symbol):
         pos = portfolio.positions[symbol]
         entry_price = pos['entry_price']
         amount = pos['amount']
-        final_price = df_with_indicators['close'].iloc[-1]
+        final_price = df_with_indicators['close'].iloc[-1] * (1 - TRADING_FEE)
         final_time = df_with_indicators.index[-1]
         trade_pnl = (final_price - entry_price) * amount
         price_change_pct = (final_price - entry_price) / entry_price * 100
@@ -317,7 +361,7 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
 
         portfolio.close_position(symbol, final_price, final_time)
 
-        print(f"  🔴 SELL | {final_time} | {final_price:,.2f} KRW (Position closed)")
+        print(f"  🔴 SELL | {final_time} | {final_price:,.2f} KRW (Position closed at end)")
         print(f"       {result_icon} Trade P&L : {trade_pnl:>+,.0f} KRW  ({price_change_pct:+.2f}%)")
         print(f"          Entry     : {entry_price:,.2f} KRW → Exit: {final_price:,.2f} KRW")
     
