@@ -113,6 +113,16 @@ STRATEGY_CONFIG = {
         'rsi_buy_threshold':  get_env_float('MACD_RSI_OBV_BUY',  55.0),   # 매수 RSI 상한 (기본: 55)
         'rsi_sell_threshold': get_env_float('MACD_RSI_OBV_SELL', 65.0),   # 매도 RSI 기준 (기본: 65)
         'obv_ma_period':      get_env_int('MACD_RSI_OBV_OBV_MA',   10),   # OBV MA 기간 (기본: 10)
+    },
+
+    # Bollinger Scalp Strategy Parameters ← 합보장 특화 파라미터
+    'bollinger_scalp': {
+        'bb_period':           get_env_int('BB_SCALP_PERIOD',       20),   # BB 이동평균 기간
+        'bb_std_mult':         get_env_float('BB_SCALP_STD_MULT',  2.0),  # 표준편차 배수
+        'rsi_period':          get_env_int('BB_SCALP_RSI_PERIOD',    9),   # RSI 기간
+        'rsi_oversold':        get_env_float('BB_SCALP_OVERSOLD',  35.0), # 과매도 기준
+        'rsi_overbought':      get_env_float('BB_SCALP_OVERBOUGHT',65.0), # 과매수 기준
+        'bb_width_threshold':  get_env_float('BB_SCALP_WIDTH_THR', 0.003),# 합보 판단 밴드폭 상한
     }
 }
 

@@ -4,7 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.2.0] - 2026-04-03
+## [0.3.0] - 2026-04-04
+
+### Added
+- **BollingerScalpStrategy** (`src/strategies/custom_strategies.py`) — 횡보장 특화 볼린저 밴드 스캘핑 전략
+  - 매수: BB 하단 돌파 + RSI 과매도 + BB 밴드폭 < 임계값(횡보장 확인) 세 조건 동시 충족
+  - 매도: BB 중심선(MA) 회귀 또는 RSI 과매수
+  - 시그널 강도: BB 이탈 정도 + RSI 과매도 정도를 결합한 복합 계산
+  - 고변동성 트렌드 장세에서 역추세 진입 자동 차단 (`bb_width_threshold`)
+  - `.env` 환경변수로 모든 파라미터 제어 가능 (`BB_SCALP_*`)
+
+- **파라미터 최적화 스크립트** (`tests/analyze_raw_data.py`)
+  - raw CSV 데이터 로드 및 통계 분석 (ATR, 볼린저 밴드폭, 수익률 분포)
+  - MACDRSIOBVStrategy / RSIOBVStrategy 그리드 서치 최적화
+  - 실제 봇과 동일한 조건(SL/TP/수수료/포지션 사이즈)으로 백테스트
+
+### Changed
+- `config/trading_config.py` — `STRATEGY_CONFIG`에 `bollinger_scalp` 파라미터 블록 추가
+- `main.py` — `BollingerScalpStrategy` 선택 및 설정 출력 지원
+- `tests/test_strategy.py` — 전략 목록에 `BollingerScalpStrategy` 추가 (백테스트 자동 포함)
+
+---
+
+
 
 ### Fixed
 - **SELL 실패 시 무한 재시도 버그 수정** (`src/trading_bot.py`)

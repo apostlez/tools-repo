@@ -31,7 +31,7 @@ from src.strategies import (
     SignalType,
     PortfolioManager
 )
-from src.strategies.custom_strategies import RSIOBVStrategy, MACDRSIOBVStrategy
+from src.strategies.custom_strategies import RSIOBVStrategy, MACDRSIOBVStrategy, BollingerScalpStrategy
 from config.trading_config import RISK_CONFIG
 
 # 환경 변수 로드
@@ -438,6 +438,14 @@ def main():
                 rsi_buy_threshold=55.0,
                 rsi_sell_threshold=65.0,
                 obv_ma_period=10,
+            ),
+            BollingerScalpStrategy(
+                bb_period=20,
+                bb_std_mult=2.0,
+                rsi_period=9,
+                rsi_oversold=35.0,
+                rsi_overbought=65.0,
+                bb_width_threshold=0.003,
             ),
         ]
 

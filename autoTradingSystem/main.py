@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.trading_bot import TradingBot
 from src.risk_manager import RiskManager
 from src.strategies import RSIStrategy, MACDStrategy, MovingAverageCrossStrategy, OBVStrategy, RSIOBVStrategy
-from src.strategies.custom_strategies import MACDRSIOBVStrategy
+from src.strategies.custom_strategies import MACDRSIOBVStrategy, BollingerScalpStrategy
 from config.trading_config import (
     EXCHANGE_CONFIG,
     TRADING_CONFIG,
@@ -199,6 +199,16 @@ def create_strategy():
             rsi_sell_threshold=params['rsi_sell_threshold'],
             obv_ma_period=params['obv_ma_period'],
         )
+    elif strategy_name == 'BollingerScalpStrategy':
+        params = STRATEGY_CONFIG['bollinger_scalp']
+        strategy = BollingerScalpStrategy(
+            bb_period=params['bb_period'],
+            bb_std_mult=params['bb_std_mult'],
+            rsi_period=params['rsi_period'],
+            rsi_oversold=params['rsi_oversold'],
+            rsi_overbought=params['rsi_overbought'],
+            bb_width_threshold=params['bb_width_threshold'],
+        )
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
     
@@ -245,6 +255,8 @@ def print_configuration():
         print(f"   Parameters: {STRATEGY_CONFIG['rsi_obv']}")
     elif STRATEGY_CONFIG['name'] == 'MACDRSIOBVStrategy':
         print(f"   Parameters: {STRATEGY_CONFIG['macd_rsi_obv']}")
+    elif STRATEGY_CONFIG['name'] == 'BollingerScalpStrategy':
+        print(f"   Parameters: {STRATEGY_CONFIG['bollinger_scalp']}")
     
     print("\n🛡️  Risk Management:")
     print(f"   Max Position Size: {RISK_CONFIG['max_position_size']*100:.0f}%")

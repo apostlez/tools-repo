@@ -1,6 +1,8 @@
 """
-Custom Strategy: RSI + OBV
-RSI 기본 시그널에 OBV 방향성으로 강도 가중치를 적용하는 복합 전략
+Custom Strategies
+- RSIOBVStrategy      : RSI + OBV 복합 전략
+- MACDRSIOBVStrategy  : MACD + RSI + OBV 3중 필터 전략
+- BollingerScalpStrategy : 볼린저 밴드 스캘핑 전략 (횡보장 특화)
 """
 
 import pandas as pd

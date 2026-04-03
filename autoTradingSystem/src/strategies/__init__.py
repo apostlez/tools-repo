@@ -19,6 +19,7 @@ from .sample_strategies import (
 from .custom_strategies import (
     RSIOBVStrategy,
     MACDRSIOBVStrategy,
+    BollingerScalpStrategy,
 )
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     'OBVStrategy',
     'RSIOBVStrategy',
     'MACDRSIOBVStrategy',
+    'BollingerScalpStrategy',
 ]
