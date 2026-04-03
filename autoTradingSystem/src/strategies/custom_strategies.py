@@ -393,6 +393,240 @@ class MACDRSIOBVStrategy(BaseStrategy):
         """
         required_cols = ["open", "high", "low", "close", "volume"]
         missing = [c for c in required_cols if c not in df.columns]
+        min_bars_needed = self.get_parameter("obv_ma_period") + 2
+        if missing or len(df) < min_bars_needed:
+            return Signal(
+                SignalType.HOLD,
+                df["close"].iloc[-1] if "close" in df.columns else 0.0,
+                datetime.now(),
+                symbol,
+                0.0,
+                "Insufficient data",
+            )
+
+        if self._precomputed is not None:
+            n = len(df)
+            indic = {k: v.iloc[:n] for k, v in self._precomputed.items()}
+        else:
+            indic = self._compute_indicators(df)
+        macd_line = indic["macd_line"]
+        macd_sig  = indic["macd_sig"]
+        rsi       = indic["rsi"]
+        obv_ma    = indic["obv_ma"]
+
+        current_price    = df["close"].iloc[-1]
+        current_rsi      = rsi.iloc[-1]
+        timestamp        = df.index[-1] if isinstance(df.index[-1], datetime) else datetime.now()
+        rsi_buy_thr      = self.get_parameter("rsi_buy_threshold")
+        rsi_sell_thr     = self.get_parameter("rsi_sell_threshold")
+
+        if pd.isna(current_rsi):
+            signal = Signal(SignalType.HOLD, current_price, timestamp, symbol, 0.0, "RSI not available")
+            self.add_signal(signal)
+            return signal
+
+        golden_cross  = self._is_golden_cross(macd_line, macd_sig)
+        obv_rising    = self._is_obv_ma_rising(obv_ma)
+
+        current_macd     = macd_line.iloc[-1]
+        current_macd_sig = macd_sig.iloc[-1]
+
+        # ── 매수 조건: Golden Cross + RSI < threshold + OBV 상승 ────
+        if golden_cross and current_rsi < rsi_buy_thr and obv_rising:
+            macd_dist  = current_macd - current_macd_sig
+            rsi_score  = (rsi_buy_thr - current_rsi) / rsi_buy_thr
+            macd_score = min(abs(macd_dist) / 2.0, 1.0)
+            strength   = min(1.0, (rsi_score + macd_score) / 2.0)
+            reason = (
+                f"MACD Golden Cross ({current_macd:.3f} > {current_macd_sig:.3f}) | "
+                f"RSI={current_rsi:.1f} < {rsi_buy_thr} | "
+                f"OBV_MA rising → BUY strength={strength:.3f}"
+            )
+            signal = Signal(
+                signal_type=SignalType.BUY,
+                price=current_price,
+                timestamp=timestamp,
+                symbol=symbol,
+                strength=strength,
+                reason=reason,
+            )
+            self.add_signal(signal)
+            return signal
+
+        # ── 매도 조건: RSI 과매수 + OBV 하락 ───────────────────────
+        if current_rsi > rsi_sell_thr and not obv_rising:
+            strength = min(1.0, (current_rsi - rsi_sell_thr) / (100 - rsi_sell_thr))
+            reason = (
+                f"RSI overbought: {current_rsi:.1f} > {rsi_sell_thr} | "
+                f"OBV_MA falling → SELL strength={strength:.3f}"
+            )
+            signal = Signal(
+                signal_type=SignalType.SELL,
+                price=current_price,
+                timestamp=timestamp,
+                symbol=symbol,
+                strength=strength,
+                reason=reason,
+            )
+            self.add_signal(signal)
+            return signal
+
+        # ── HOLD ────────────────────────────────────────────────────
+        gc_str  = "YES" if golden_cross else "NO"
+        obv_str = "rising" if obv_rising else "falling"
+        reason  = (
+            f"HOLD | GoldenCross={gc_str} | RSI={current_rsi:.1f} | OBV_MA {obv_str}"
+        )
+        signal = Signal(
+            signal_type=SignalType.HOLD,
+            price=current_price,
+            timestamp=timestamp,
+            symbol=symbol,
+            strength=0.0,
+            reason=reason,
+        )
+        self.add_signal(signal)
+        return signal
+
+
+class BollingerScalpStrategy(BaseStrategy):
+    """
+    볼린저 밴드 스캘핑 전략 — 횡보장(저변동성) 특화
+
+    전략 로직:
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  [매수 조건] 세 가지 모두 충족                                    │
+    │    1. 현재가 < BB 하단 (밴드 하단 터치/돌파 → 과매도 구간)        │
+    │    2. RSI < rsi_oversold (추가 과매도 확인)                      │
+    │    3. BB 밴드폭 < bb_width_threshold (저변동성 확인)              │
+    │       → 고변동성 장세(트렌드)에서는 역추세 매매 금지              │
+    │                                                                 │
+    │  [매도 조건] 어느 하나 충족                                       │
+    │    1. 현재가 > BB 중심선(MA) (평균 회귀 완료)                     │
+    │    2. RSI > rsi_overbought                                      │
+    │                                                                 │
+    │  [시그널 강도]                                                   │
+    │    매수: (BB 하단 이탈 정도 + RSI 과매도 정도) 결합               │
+    │    매도: 고정 0.8                                                │
+    │                                                                 │
+    │  [적합 시장 조건]                                                │
+    │    - BB 밴드폭 0.05~0.3% 범위의 좁은 횡보장                      │
+    │    - 1분봉 XRP/KRW 같이 빠른 평균회귀가 자주 발생하는 종목       │
+    └─────────────────────────────────────────────────────────────────┘
+    """
+
+    def __init__(
+        self,
+        bb_period: int = 20,
+        bb_std_mult: float = 2.0,
+        rsi_period: int = 9,
+        rsi_oversold: float = 35.0,
+        rsi_overbought: float = 65.0,
+        bb_width_threshold: float = 0.003,
+    ):
+        super().__init__(
+            name="BollingerScalp Strategy",
+            parameters={
+                "bb_period": bb_period,
+                "bb_std_mult": bb_std_mult,
+                "rsi_period": rsi_period,
+                "rsi_oversold": rsi_oversold,
+                "rsi_overbought": rsi_overbought,
+                "bb_width_threshold": bb_width_threshold,
+            },
+        )
+
+    def get_required_indicators(self) -> list:
+        return ["bb_upper", "bb_lower", "bb_mid", "rsi_9"]
+
+    def min_bars(self) -> int:
+        return self.get_parameter("bb_period") + 2
+
+    def _compute(self, df: pd.DataFrame) -> dict:
+        period  = self.get_parameter("bb_period")
+        mult    = self.get_parameter("bb_std_mult")
+        rsi_p   = self.get_parameter("rsi_period")
+        close   = df["close"]
+
+        bb_ma    = close.rolling(window=period).mean()
+        bb_std   = close.rolling(window=period).std()
+        bb_upper = bb_ma + mult * bb_std
+        bb_lower = bb_ma - mult * bb_std
+        bb_width = (bb_upper - bb_lower) / bb_ma
+
+        delta = close.diff()
+        gain  = delta.where(delta > 0, 0).rolling(window=rsi_p).mean()
+        loss  = (-delta.where(delta < 0, 0)).rolling(window=rsi_p).mean()
+        rsi   = 100 - (100 / (1 + gain / loss))
+
+        return {
+            "bb_ma": bb_ma,
+            "bb_upper": bb_upper,
+            "bb_lower": bb_lower,
+            "bb_width": bb_width,
+            "rsi": rsi,
+        }
+
+    def analyze(self, df: pd.DataFrame, symbol: str) -> Signal:
+        min_bars = self.min_bars()
+        if len(df) < min_bars or "close" not in df.columns:
+            return Signal(
+                SignalType.HOLD,
+                df["close"].iloc[-1] if "close" in df.columns else 0,
+                datetime.now(), symbol, 0.0, "Insufficient data",
+            )
+
+        ind       = self._compute(df)
+        price     = df["close"].iloc[-1]
+        timestamp = df.index[-1] if isinstance(df.index[-1], datetime) else datetime.now()
+
+        bb_ma    = ind["bb_ma"].iloc[-1]
+        bb_upper = ind["bb_upper"].iloc[-1]
+        bb_lower = ind["bb_lower"].iloc[-1]
+        bb_width = ind["bb_width"].iloc[-1]
+        rsi      = ind["rsi"].iloc[-1]
+
+        if any(pd.isna(v) for v in [bb_ma, bb_upper, bb_lower, bb_width, rsi]):
+            return Signal(SignalType.HOLD, price, timestamp, symbol, 0.0, "Indicator NaN")
+
+        oversold   = self.get_parameter("rsi_oversold")
+        overbought = self.get_parameter("rsi_overbought")
+        width_thr  = self.get_parameter("bb_width_threshold")
+        is_ranging = bb_width < width_thr
+
+        # ── 매도: BB 중심선 복귀 또는 RSI 과매수 ──────────────────
+        if price > bb_ma or rsi > overbought:
+            reason = (
+                f"BB mid revert: {price:,.2f} > {bb_ma:,.2f}"
+                if price > bb_ma else
+                f"RSI overbought: {rsi:.1f} > {overbought}"
+            )
+            signal = Signal(SignalType.SELL, price, timestamp, symbol, 0.8, reason)
+            self.add_signal(signal)
+            return signal
+
+        # ── 매수: BB 하단 + RSI 과매도 + 횡보장 ─────────────────
+        if price < bb_lower and rsi < oversold and is_ranging:
+            bb_dev   = (bb_lower - price) / (bb_upper - bb_lower + 1e-9)
+            rsi_dev  = (oversold - rsi) / oversold
+            strength = float(np.clip(0.5 * bb_dev + 0.5 * rsi_dev, 0.1, 1.0))
+            reason   = (
+                f"BB lower break: {price:,.2f} < {bb_lower:,.2f} | "
+                f"RSI oversold: {rsi:.1f} | BB_width={bb_width*100:.3f}%"
+            )
+            signal = Signal(SignalType.BUY, price, timestamp, symbol, strength, reason)
+            self.add_signal(signal)
+            return signal
+
+        # ── HOLD ─────────────────────────────────────────────────
+        reason = (
+            f"HOLD | ranging={is_ranging} rsi={rsi:.1f} "
+            f"price={price:,.2f} bb_lo={bb_lower:,.2f} bw={bb_width*100:.3f}%"
+        )
+        signal = Signal(SignalType.HOLD, price, timestamp, symbol, 0.0, reason)
+        self.add_signal(signal)
+        return signal
+        missing = [c for c in required_cols if c not in df.columns]
         # OBV_MA(obv_ma_period)와 크로스 감지(+2)를 위한 최소 봉 수
         # RSI/MACD는 EWM/rolling이라 첫 봉부터 값을 반환하므로 obv_ma_period가 기준
         min_bars_needed = self.get_parameter("obv_ma_period") + 2
