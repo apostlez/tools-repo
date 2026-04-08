@@ -49,14 +49,6 @@ def backtest_core(
 ) -> Dict[str, Any]:
     """전략 + 리스크 파라미터 조합으로 백테스트 실행 후 성과 딕셔너리 반환"""
 
-    # precompute (MACDRSIOBVStrategy 등 캐시 지원)
-    if hasattr(strategy, 'precompute'):
-        strategy.precompute(df_ind)
-        strategy._precomputed = None  # 이전 캐시 초기화 후 재계산
-
-    if hasattr(strategy, 'precompute'):
-        strategy.precompute(df_ind)
-
     portfolio = PortfolioManager(INITIAL_BALANCE)
 
     if hasattr(strategy, 'min_bars') and callable(strategy.min_bars):
@@ -148,6 +140,9 @@ def grid_search(name, factory_fn, param_grid, risk_grid, df_ind, symbol) -> List
     for p_combo in itertools.product(*param_values):
         p_dict = dict(zip(param_keys, p_combo))
         strategy = factory_fn(**p_dict)
+        # precompute는 파라미터 조합당 한 번만 실행 (리스크 루프에서 재사용)
+        if hasattr(strategy, 'precompute'):
+            strategy.precompute(df_ind)
 
         for r_combo in itertools.product(*risk_values):
             r_dict   = dict(zip(risk_keys, r_combo))
@@ -172,69 +167,67 @@ def grid_search(name, factory_fn, param_grid, risk_grid, df_ind, symbol) -> List
 # ─────────────────────────────────────────────────────────────────────────────
 
 RISK_GRID = {
-    # 횡보 시장에 맞게 TP를 낮게, SL도 타이트하게 탐색
     'max_position_size': [0.3, 0.5, 0.8],
-    'stop_loss_pct':     [0.003, 0.005, 0.01],
-    'take_profit_pct':   [0.003, 0.005, 0.01, 0.02],
+    'stop_loss_pct':     [0.005, 0.01],
+    'take_profit_pct':   [0.005, 0.01, 0.02],
 }
 
 STRATEGY_GRIDS = {
     'RSIStrategy': {
         'factory': lambda **p: RSIStrategy(**p),
         'params': {
-            'oversold':   [20, 25, 30, 35],
-            'overbought': [65, 70, 75, 80],
+            'oversold':   [25, 30, 35],
+            'overbought': [65, 70, 80],
         },
     },
     'MACDStrategy': {
-        'factory': lambda **p: MACDStrategy(**p),
-        'params': {
-            'fast_period':   [5, 8, 12],
-            'slow_period':   [15, 21, 26],
-            'signal_period': [3, 5, 9],
-        },
+        # MACDStrategy.analyze()는 사전 계산된 고정 macd_histogram 컬럼을 사용하므로
+        # 파라미터 변경이 실제 계산에 영향 없음 → 리스크 파라미터만 탐색
+        'factory': lambda **p: MACDStrategy(),
+        'params': {},
     },
     'MovingAverageCrossStrategy': {
+        # calculate_all_indicators는 sma_20, sma_50, sma_200만 계산하므로
+        # 해당 값만 탐색 (fast < slow 조합만 유효)
         'factory': lambda **p: MovingAverageCrossStrategy(**p),
         'params': {
-            'fast_period': [5, 10, 20],
-            'slow_period': [20, 30, 50],
+            'fast_period': [20],
+            'slow_period': [50, 200],
         },
     },
     'OBVStrategy': {
         'factory': lambda **p: OBVStrategy(**p),
         'params': {
             'obv_ma_period':       [5, 10, 20],
-            'divergence_lookback': [3, 5, 8],
+            'divergence_lookback': [3, 5],
         },
     },
     'RSIOBVStrategy': {
         'factory': lambda **p: RSIOBVStrategy(**p),
         'params': {
-            'oversold':    [20, 30, 35],
-            'overbought':  [65, 70, 80],
+            'oversold':    [25, 35],
+            'overbought':  [65, 75],
             'obv_weight':  [0.3, 0.5, 0.7],
         },
     },
     'MACDRSIOBVStrategy': {
         'factory': lambda **p: MACDRSIOBVStrategy(**p),
         'params': {
-            'macd_fast':          [5, 8, 12],
+            'macd_fast':          [5, 8],
             'macd_slow':          [15, 21],
             'macd_signal':        [3, 5],
-            'rsi_buy_threshold':  [45.0, 55.0],
+            'rsi_buy_threshold':  [50.0, 55.0],
             'rsi_sell_threshold': [60.0, 70.0],
         },
     },
     'BollingerScalpStrategy': {
         'factory': lambda **p: BollingerScalpStrategy(**p),
         'params': {
-            'bb_period':      [10, 15, 20],
-            'bb_std':         [1.5, 2.0, 2.5],
-            'rsi_period':     [7, 9, 14],
-            'rsi_oversold':   [30, 35, 40],
-            'rsi_overbought': [60, 65, 70],
-            'vol_multiplier': [1.0, 1.5, 2.0],
+            'bb_period':      [10, 20],
+            'bb_std_mult':    [1.5, 2.0],
+            'rsi_period':     [7, 9],
+            'rsi_oversold':   [30, 35],
+            'rsi_overbought': [60, 65],
         },
     },
 }

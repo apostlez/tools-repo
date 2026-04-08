@@ -214,22 +214,24 @@ class MACDRSIOBVStrategy(BaseStrategy):
 
     전략 로직:
     ┌─────────────────────────────────────────────────────────────────┐
-    │  [매수 시그널] 세 가지 조건 모두 충족 시 BUY                     │
-    │    1. MACD Golden Cross: MACD 라인이 Signal 라인 위로 교차       │
-    │       (이전 봉: MACD < Signal → 현재 봉: MACD >= Signal)        │
-    │    2. RSI < rsi_buy_threshold (과매도 아님 + 추세 전환 확인)     │
-    │    3. OBV_MA 상승 중 (매수세 유입 확인)                          │
+    │  [매수 시그널] MACD 필수 + RSI/OBV 중 1개 이상 충족             │
+    │    조건 1. MACD Bullish: MACD >= Signal AND MACD 상승 중        │
+    │           (단발 교차가 아닌 상승 모멘텀 지속 구간 전체 포착)     │
+    │    조건 2. RSI < rsi_buy_threshold                              │
+    │    조건 3. OBV_MA 상승 중                                       │
     │                                                                 │
-    │  [매도 시그널] 두 가지 조건 모두 충족 시 SELL                    │
-    │    1. RSI > rsi_sell_threshold (과매수 영역)                     │
-    │    2. OBV_MA 하락 중 (매도세 우위)                               │
+    │    3/3 충족 → 강한 BUY  (strength = max(0.4, full))             │
+    │    2/3 충족 → 약한 BUY  (strength = max(0.25, full × 0.4))     │
+    │    ※ 조건 1(MACD Bullish)은 항상 필수                           │
     │                                                                 │
-    │  [파라미터 기본값] — raw XRP/KRW 1분봉 데이터로 최적화           │
+    │  [매도 시그널] 완화된 OR 조건                                    │
+    │    강한 SELL: RSI > rsi_sell_threshold                          │
+    │    약한 SELL: RSI > rsi_sell_threshold - 5 AND OBV_MA 하락      │
+    │                                                                 │
+    │  [파라미터 기본값]                                               │
     │    MACD: fast=8, slow=21, signal=5                              │
     │    RSI:  period=9, buy_threshold=55, sell_threshold=65          │
     │    OBV:  ma_period=10                                           │
-    │                                                                 │
-    │  → 위 파라미터로 raw XRP/KRW 1분봉(~7시간)에서 7번 매수 발생    │
     └─────────────────────────────────────────────────────────────────┘
     """
 
@@ -368,6 +370,21 @@ class MACDRSIOBVStrategy(BaseStrategy):
             return False
         return curr > prev
 
+    def _is_macd_bullish(self, macd_line: pd.Series, macd_sig: pd.Series) -> bool:
+        """MACD 강세 구간 확인 — Golden Cross보다 넓은 지속 상태 조건.
+
+        MACD >= Signal (위에 있음) AND MACD 값이 이전 봉 대비 상승 중.
+        교차 순간(1봉)뿐 아니라 상승 모멘텀이 지속되는 동안 True를 반환합니다.
+        """
+        if len(macd_line) < 2:
+            return False
+        curr_macd = macd_line.iloc[-1]
+        prev_macd = macd_line.iloc[-2]
+        curr_sig  = macd_sig.iloc[-1]
+        if pd.isna(curr_macd) or pd.isna(prev_macd):
+            return False
+        return curr_macd >= curr_sig and curr_macd > prev_macd
+
     # ------------------------------------------------------------------
     # Core analyze
     # ------------------------------------------------------------------
@@ -425,40 +442,79 @@ class MACDRSIOBVStrategy(BaseStrategy):
             self.add_signal(signal)
             return signal
 
-        golden_cross  = self._is_golden_cross(macd_line, macd_sig)
+        macd_bullish  = self._is_macd_bullish(macd_line, macd_sig)
         obv_rising    = self._is_obv_ma_rising(obv_ma)
+        rsi_ok        = current_rsi < rsi_buy_thr
 
         current_macd     = macd_line.iloc[-1]
         current_macd_sig = macd_sig.iloc[-1]
 
-        # ── 매수 조건: Golden Cross + RSI < threshold + OBV 상승 ────
-        if golden_cross and current_rsi < rsi_buy_thr and obv_rising:
-            macd_dist  = current_macd - current_macd_sig
-            rsi_score  = (rsi_buy_thr - current_rsi) / rsi_buy_thr
-            macd_score = min(abs(macd_dist) / 2.0, 1.0)
-            strength   = min(1.0, (rsi_score + macd_score) / 2.0)
-            reason = (
-                f"MACD Golden Cross ({current_macd:.3f} > {current_macd_sig:.3f}) | "
-                f"RSI={current_rsi:.1f} < {rsi_buy_thr} | "
-                f"OBV_MA rising → BUY strength={strength:.3f}"
-            )
-            signal = Signal(
-                signal_type=SignalType.BUY,
-                price=current_price,
-                timestamp=timestamp,
-                symbol=symbol,
-                strength=strength,
-                reason=reason,
-            )
-            self.add_signal(signal)
-            return signal
+        # 2/3 BUY 허용 시 RSI 하드캡: rsi_buy_threshold × 1.15 초과 시 매수 금지
+        # (RSI가 이미 높은 상태에서 MACD+OBV만으로 진입하는 것을 차단)
+        rsi_hard_cap = rsi_buy_thr * 1.15
 
-        # ── 매도 조건: RSI 과매수 + OBV 하락 ───────────────────────
-        if current_rsi > rsi_sell_thr and not obv_rising:
-            strength = min(1.0, (current_rsi - rsi_sell_thr) / (100 - rsi_sell_thr))
+        # ── 매수 조건: MACD 필수 + RSI/OBV 중 1개 이상 충족 ────────
+        #  3/3: 강한 BUY  (strength floor 0.4)
+        #  2/3: 약한 BUY  (strength floor 0.25, MACD 조건은 필수)
+        #       단, RSI > rsi_hard_cap 이면 2/3 BUY 차단
+        if macd_bullish:
+            conditions_met = sum([macd_bullish, rsi_ok, obv_rising])
+            # 2/3이면서 RSI 하드캡 초과 → 진입 차단
+            if conditions_met == 2 and current_rsi > rsi_hard_cap:
+                conditions_met = 1
+            #if conditions_met >= 2:
+            if conditions_met >= 3:
+                macd_dist  = current_macd - current_macd_sig
+                rsi_score  = max(0.0, (rsi_buy_thr - current_rsi) / rsi_buy_thr) if rsi_ok else 0.0
+                macd_score = min(abs(macd_dist) / (current_price * 0.002 + 1e-9), 1.0)
+                full_strength = min(1.0, (rsi_score + macd_score) / 2.0)
+
+                if conditions_met == 3:
+                    strength = max(0.4, full_strength)
+                    cond_str = "3/3"
+                else:
+                    #strength = max(0.25, full_strength * 0.4)
+                    strength = 0.0
+                    cond_str = "2/3"
+
+                skipped = []
+                if not rsi_ok:
+                    skipped.append(f"RSI={current_rsi:.1f}>={rsi_buy_thr}")
+                if not obv_rising:
+                    skipped.append("OBV_MA falling")
+                skip_str = f" | skip: {', '.join(skipped)}" if skipped else ""
+
+                reason = (
+                    f"MACD Bullish ({current_macd:.3f}>={current_macd_sig:.3f}, rising) | "
+                    f"RSI={current_rsi:.1f} | OBV_MA {'rising' if obv_rising else 'falling'} "
+                    f"[{cond_str}]{skip_str} → BUY strength={strength:.3f}"
+                )
+                signal = Signal(
+                    signal_type=SignalType.BUY,
+                    price=current_price,
+                    timestamp=timestamp,
+                    symbol=symbol,
+                    strength=strength,
+                    reason=reason,
+                )
+                self.add_signal(signal)
+                return signal
+
+        # ── 매도 조건: RSI가 rsi_sell_thr 아래로 교차하는 순간 ──────
+        #  이전 봉: RSI >= rsi_sell_thr  →  현재 봉: RSI < rsi_sell_thr
+        #  (하락 교차 시점에만 발화 — 과매수 구간 이탈 확인 후 청산)
+        prev_rsi = rsi.iloc[-2] if len(rsi) >= 2 else float('nan')
+        rsi_cross_down = (
+            not pd.isna(prev_rsi)
+            and prev_rsi >= rsi_sell_thr
+            and current_rsi < rsi_sell_thr
+        )
+        if rsi_cross_down and not macd_bullish:
+            strength = min(1.0, (prev_rsi - rsi_sell_thr) / (100 - rsi_sell_thr))
+            obv_rising    = self._is_obv_ma_rising(obv_ma * 2) # 매도 시 obv_ma_period 는 더 길게 관측
             reason = (
-                f"RSI overbought: {current_rsi:.1f} > {rsi_sell_thr} | "
-                f"OBV_MA falling → SELL strength={strength:.3f}"
+                f"RSI cross-down: {prev_rsi:.1f} → {current_rsi:.1f} (thr={rsi_sell_thr}) | "
+                f"OBV_MA {'falling' if not obv_rising else 'rising'} → SELL strength={strength:.3f}"
             )
             signal = Signal(
                 signal_type=SignalType.SELL,
@@ -472,10 +528,10 @@ class MACDRSIOBVStrategy(BaseStrategy):
             return signal
 
         # ── HOLD ────────────────────────────────────────────────────
-        gc_str  = "YES" if golden_cross else "NO"
         obv_str = "rising" if obv_rising else "falling"
         reason  = (
-            f"HOLD | GoldenCross={gc_str} | RSI={current_rsi:.1f} | OBV_MA {obv_str}"
+            f"HOLD | MACD_Bullish={'YES' if macd_bullish else 'NO'} | "
+            f"RSI={current_rsi:.1f} | OBV_MA {obv_str}"
         )
         signal = Signal(
             signal_type=SignalType.HOLD,
@@ -624,111 +680,5 @@ class BollingerScalpStrategy(BaseStrategy):
             f"price={price:,.2f} bb_lo={bb_lower:,.2f} bw={bb_width*100:.3f}%"
         )
         signal = Signal(SignalType.HOLD, price, timestamp, symbol, 0.0, reason)
-        self.add_signal(signal)
-        return signal
-        missing = [c for c in required_cols if c not in df.columns]
-        # OBV_MA(obv_ma_period)와 크로스 감지(+2)를 위한 최소 봉 수
-        # RSI/MACD는 EWM/rolling이라 첫 봉부터 값을 반환하므로 obv_ma_period가 기준
-        min_bars_needed = self.get_parameter("obv_ma_period") + 2
-        if missing or len(df) < min_bars_needed:
-            return Signal(
-                SignalType.HOLD,
-                df["close"].iloc[-1] if "close" in df.columns else 0.0,
-                datetime.now(),
-                symbol,
-                0.0,
-                "Insufficient data",
-            )
-
-        if self._precomputed is not None:
-            # 백테스트 모드: 전체 데이터 기반 사전 계산 값을 슬라이스하여 사용
-            n = len(df)
-            indic = {k: v.iloc[:n] for k, v in self._precomputed.items()}
-        else:
-            indic = self._compute_indicators(df)
-        macd_line = indic["macd_line"]
-        macd_sig = indic["macd_sig"]
-        rsi = indic["rsi"]
-        obv_ma = indic["obv_ma"]
-
-        current_price = df["close"].iloc[-1]
-        current_rsi = rsi.iloc[-1]
-        timestamp = (
-            df.index[-1] if isinstance(df.index[-1], datetime) else datetime.now()
-        )
-
-        if pd.isna(current_rsi):
-            signal = Signal(
-                SignalType.HOLD, current_price, timestamp, symbol,
-                0.0, "RSI not available"
-            )
-            self.add_signal(signal)
-            return signal
-
-        rsi_buy_thr = self.get_parameter("rsi_buy_threshold")
-        rsi_sell_thr = self.get_parameter("rsi_sell_threshold")
-
-        golden_cross = self._is_golden_cross(macd_line, macd_sig)
-        obv_rising = self._is_obv_ma_rising(obv_ma)
-
-        current_macd = macd_line.iloc[-1]
-        current_macd_sig = macd_sig.iloc[-1]
-
-        # ── 매수 판단: Golden Cross + RSI < threshold + OBV 상승 ─────
-        if golden_cross and current_rsi < rsi_buy_thr and obv_rising:
-            macd_dist = current_macd - current_macd_sig
-            # 강도: RSI 여유분 + MACD 히스토그램 크기로 계산 (0~1 클립)
-            rsi_score = (rsi_buy_thr - current_rsi) / rsi_buy_thr
-            macd_score = min(abs(macd_dist) / 2.0, 1.0)
-            strength = min(1.0, (rsi_score + macd_score) / 2.0)
-            reason = (
-                f"MACD Golden Cross ({current_macd:.3f} > {current_macd_sig:.3f}) | "
-                f"RSI={current_rsi:.1f} < {rsi_buy_thr} | "
-                f"OBV_MA rising → BUY strength={strength:.3f}"
-            )
-            signal = Signal(
-                signal_type=SignalType.BUY,
-                price=current_price,
-                timestamp=timestamp,
-                symbol=symbol,
-                strength=strength,
-                reason=reason,
-            )
-            self.add_signal(signal)
-            return signal
-
-        # ── 매도 판단: RSI 과매수 + OBV 하락 ─────────────────────────
-        if current_rsi > rsi_sell_thr and not obv_rising:
-            strength = min(1.0, (current_rsi - rsi_sell_thr) / (100 - rsi_sell_thr))
-            reason = (
-                f"RSI overbought: {current_rsi:.1f} > {rsi_sell_thr} | "
-                f"OBV_MA falling → SELL strength={strength:.3f}"
-            )
-            signal = Signal(
-                signal_type=SignalType.SELL,
-                price=current_price,
-                timestamp=timestamp,
-                symbol=symbol,
-                strength=strength,
-                reason=reason,
-            )
-            self.add_signal(signal)
-            return signal
-
-        # ── HOLD ─────────────────────────────────────────────────────
-        gc_str = "YES" if golden_cross else "NO"
-        obv_str = "rising" if obv_rising else "falling"
-        reason = (
-            f"HOLD | GoldenCross={gc_str} | RSI={current_rsi:.1f} | "
-            f"OBV_MA {obv_str}"
-        )
-        signal = Signal(
-            signal_type=SignalType.HOLD,
-            price=current_price,
-            timestamp=timestamp,
-            symbol=symbol,
-            strength=0.0,
-            reason=reason,
-        )
         self.add_signal(signal)
         return signal

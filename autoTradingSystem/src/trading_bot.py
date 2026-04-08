@@ -64,6 +64,7 @@ class TradingBot:
         self.positions: Dict = {}  # symbol -> position info
         self.balance = self.initial_balance
         self.trade_history: List[Dict] = []
+        self._sell_defer_count: int = 0   # 수익 미달 시 매도 보류 횟수
         
         # 로거 설정
         self.logger = logging.getLogger(__name__)
@@ -295,7 +296,38 @@ class TradingBot:
         position = self.positions[symbol]
         amount = position['amount']
         entry_price = position['entry_price']
-        
+
+        # 주문 실행 전 거래소 실제 가용 잔고(free)를 주문량으로 사용
+        # (tracked > actual 시 insufficient_funds 방지 — 차이가 소량이어도 Upbit는 거부함)
+        if not self.dry_run:
+            base_currency = symbol.split('/')[0]
+            try:
+                real_balance = self._call_with_retry(self.exchange.fetch_balance)
+                free_amount = real_balance['free'].get(base_currency, 0.0)
+                real_amount = free_amount + real_balance['used'].get(base_currency, 0.0)
+
+                if real_amount < amount * 0.01:
+                    self.logger.warning(
+                        f"⚠️ No {base_currency} balance on exchange. "
+                        f"Removing orphaned position (tracked={amount:.6f})."
+                    )
+                    del self.positions[symbol]
+                    return
+
+                if real_amount != amount:
+                    self.logger.info(
+                        f"🔧 Pre-sell amount correction [{base_currency}]: "
+                        f"tracked={amount:.6f} → free={free_amount:.6f}"
+                    )
+                    ratio = real_amount / amount
+                    position['amount'] = real_amount
+                    position['cost'] *= ratio
+
+                # Upbit는 free(주문 가능) 잔고만 매도 가능
+                amount = free_amount if free_amount > 0 else real_amount
+            except Exception as e:
+                self.logger.warning(f"⚠️ Pre-sell balance fetch failed, using tracked amount: {e}")
+
         # 주문 실행
         if not self.dry_run:
             try:
@@ -415,7 +447,21 @@ class TradingBot:
             
             # 6. 매도 시그널 처리
             elif signal.signal_type == SignalType.SELL and self.has_position(self.symbol):
-                self.close_position(self.symbol, current_price, "Sell Signal")
+                pos = self.positions[self.symbol]
+                entry_price = pos.get('entry_price', current_price)
+                profit_pct = (current_price - entry_price) / entry_price
+                _MAX_DEFER = 3
+                _MIN_PROFIT = 0.005  # 0.5%
+                if profit_pct < _MIN_PROFIT and self._sell_defer_count < _MAX_DEFER:
+                    self._sell_defer_count += 1
+                    self.logger.info(
+                        f"⏸ SELL deferred ({self._sell_defer_count}/{_MAX_DEFER}): "
+                        f"profit={profit_pct*100:+.3f}% < {_MIN_PROFIT*100:.1f}% "
+                        f"| entry={entry_price:,.2f} current={current_price:,.2f}"
+                    )
+                else:
+                    self._sell_defer_count = 0
+                    self.close_position(self.symbol, current_price, "Sell Signal")
             
         except Exception as e:
             self.logger.error(f"Error in run_iteration: {e}", exc_info=True)

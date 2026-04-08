@@ -96,7 +96,7 @@ def load_from_csv(csv_path: str) -> tuple[pd.DataFrame, str]:
     return df, symbol
 
 
-def fetch_market_data(symbol: str = 'XRP/KRW', 
+def fetch_market_data(symbol: str = 'XRP/KRW', # XRP/KRW
                      timeframe: str = '1m',
                      limit: int = 200) -> pd.DataFrame:
     """
@@ -263,6 +263,10 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
     print(f"💱 Exchange: Upbit | Symbol: {symbol}")
     print(f"\n🔄 Running backtest...")
 
+    _MAX_DEFER  = 3      # 매도 보류 최대 횟수 (bot 과 동일)
+    _MIN_PROFIT = 0.005  # 최소 보장 수익률 0.5% (bot 과 동일)
+    sell_defer_count = 0  # 매도 보류 횟수 카운터
+
     # 각 시점마다 시그널 확인 및 거래 실행
     if hasattr(strategy, 'min_bars') and callable(strategy.min_bars):
         start_idx = max(2, strategy.min_bars())
@@ -330,23 +334,35 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
         elif signal.signal_type == SignalType.SELL and portfolio.has_position(symbol):
             pos = portfolio.positions[symbol]
             entry_price = pos['entry_price']
-            amount = pos['amount']
-            sell_price = current_price * (1 - TRADING_FEE)
-            trade_pnl = (sell_price - entry_price) * amount
-            price_change_pct = (sell_price - entry_price) / entry_price * 100
-            result_icon = "✅" if trade_pnl >= 0 else "❌"
+            profit_pct_raw = (current_price - entry_price) / entry_price
 
-            portfolio.close_position(symbol, sell_price, current_time)
+            # 수익 0.5% 미만 시 최대 3회까지 매도 보류 (bot 과 동일 로직)
+            if profit_pct_raw < _MIN_PROFIT and sell_defer_count < _MAX_DEFER:
+                sell_defer_count += 1
+                print(
+                    f"  ⏸ SELL deferred ({sell_defer_count}/{_MAX_DEFER}) | {current_time} | "
+                    f"profit={profit_pct_raw*100:+.3f}% < {_MIN_PROFIT*100:.1f}% "
+                    f"| entry={entry_price:,.2f} current={current_price:,.2f}"
+                )
+            else:
+                sell_defer_count = 0
+                amount = pos['amount']
+                sell_price = current_price * (1 - TRADING_FEE)
+                trade_pnl = (sell_price - entry_price) * amount
+                price_change_pct = (sell_price - entry_price) / entry_price * 100
+                result_icon = "✅" if trade_pnl >= 0 else "❌"
 
-            rsi_val = current_df['rsi_14'].iloc[-1] if 'rsi_14' in current_df.columns else float('nan')
-            obv_val = current_df['obv'].iloc[-1] if 'obv' in current_df.columns else float('nan')
+                portfolio.close_position(symbol, sell_price, current_time)
 
-            print(f"  🔴 SELL | {current_time} | {current_price:,.2f} KRW")
-            print(f"       {result_icon} Trade P&L : {trade_pnl:>+,.0f} KRW  ({price_change_pct:+.2f}%)")
-            print(f"          Entry     : {entry_price:,.2f} KRW → Exit: {sell_price:,.2f} KRW")
-            print(f"          Reason    : {signal.reason}")
-            print(f"          RSI       : {rsi_val:.2f}" if not pd.isna(rsi_val) else "          RSI       : N/A")
-            print(f"          OBV       : {obv_val:,.0f}" if not pd.isna(obv_val) else "          OBV       : N/A")
+                rsi_val = current_df['rsi_14'].iloc[-1] if 'rsi_14' in current_df.columns else float('nan')
+                obv_val = current_df['obv'].iloc[-1] if 'obv' in current_df.columns else float('nan')
+
+                print(f"  🔴 SELL | {current_time} | {current_price:,.2f} KRW")
+                print(f"       {result_icon} Trade P&L : {trade_pnl:>+,.0f} KRW  ({price_change_pct:+.2f}%)")
+                print(f"          Entry     : {entry_price:,.2f} KRW → Exit: {sell_price:,.2f} KRW")
+                print(f"          Reason    : {signal.reason}")
+                print(f"          RSI       : {rsi_val:.2f}" if not pd.isna(rsi_val) else "          RSI       : N/A")
+                print(f"          OBV       : {obv_val:,.0f}" if not pd.isna(obv_val) else "          OBV       : N/A")
 
     # 남은 포지션 정리 (강제 청산)
     if portfolio.has_position(symbol):
@@ -374,15 +390,15 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
     
     print(f"\n📊 Trading Statistics:")
     print(f"   Total Trades: {performance['total_trades']}")
-    print(f"   Winning Trades: {performance['winning_trades']}")
-    print(f"   Losing Trades: {performance['losing_trades']}")
-    print(f"   Win Rate: {performance['win_rate']:.2f}%")
+    print(f"   Winning Trades: {performance.get('winning_trades', 0)}")
+    print(f"   Losing Trades: {performance.get('losing_trades', 0)}")
+    print(f"   Win Rate: {performance.get('win_rate', 0):.2f}%")
     
     print(f"\n💵 Financial Results:")
-    print(f"   Initial Balance: {performance['initial_balance']:>14,.0f} KRW")
-    print(f"   Final Balance:   {performance['current_balance']:>14,.0f} KRW")
-    print(f"   Total Profit:    {performance['total_profit']:>+14,.0f} KRW")
-    print(f"   Return: {performance['return_pct']:+.2f}%")
+    print(f"   Initial Balance: {performance.get('initial_balance', initial_balance):>14,.0f} KRW")
+    print(f"   Final Balance:   {performance.get('current_balance', initial_balance):>14,.0f} KRW")
+    print(f"   Total Profit:    {performance.get('total_profit', 0):>+14,.0f} KRW")
+    print(f"   Return: {performance.get('return_pct', 0):+.2f}%")
     
     if performance['total_trades'] > 0:
         print(f"\n📈 Trade Analysis:")
@@ -392,13 +408,30 @@ def run_backtest_simulation(strategy, df: pd.DataFrame, symbol: str, initial_bal
     
     # Buy & Hold 비교
     buy_hold_return = ((df['close'].iloc[-1] - df['close'].iloc[50]) / df['close'].iloc[50]) * 100
+    strategy_return = performance.get('return_pct', 0.0)
     print(f"\n🔄 Strategy vs Buy & Hold:")
-    print(f"   Strategy Return: {performance['return_pct']:+.2f}%")
+    print(f"   Strategy Return: {strategy_return:+.2f}%")
     print(f"   Buy & Hold Return: {buy_hold_return:+.2f}%")
-    print(f"   Outperformance: {(performance['return_pct'] - buy_hold_return):+.2f}%")
+    print(f"   Outperformance: {(strategy_return - buy_hold_return):+.2f}%")
 
     trade_pnls = [round(t['profit'], 2) for t in portfolio.trade_history if t['type'] == 'SELL']
-    return performance, buy_hold_return, trade_pnls
+
+    # 차트 표시용 거래 이벤트 (timestamp는 문자열로 직렬화)
+    def _ts_str(ts):
+        return ts.strftime('%Y-%m-%d %H:%M:%S') if hasattr(ts, 'strftime') else str(ts)
+
+    trade_events = []
+    for t in portfolio.trade_history:
+        ev = {
+            'type': t['type'],
+            'timestamp': _ts_str(t['timestamp']),
+            'price': round(float(t['price']), 4),
+        }
+        if t['type'] == 'SELL':
+            ev['profit_pct'] = round(float(t.get('profit_pct', 0.0)), 4)
+        trade_events.append(ev)
+
+    return performance, buy_hold_return, trade_pnls, trade_events
 
 def main():
     """메인 함수"""
@@ -407,6 +440,7 @@ def main():
     print("="*70)
     
     # 설정
+    SYMBOL = 'XRP/KRW' # 'POLYX/KRW'          # ← 심볼 변경 시 여기만 수정 (예: 'BTC/KRW', 'ETH/KRW', 'XRP/KRW')
     TIMEFRAME = '1m'
     LIMIT = 400
     INITIAL_BALANCE = 1_000_000  # KRW
@@ -419,7 +453,6 @@ def main():
         if csv_path:
             df, SYMBOL = load_from_csv(csv_path)
         else:
-            SYMBOL = 'XRP/KRW'
             df = fetch_market_data(SYMBOL, TIMEFRAME, LIMIT)
 
         # 2. 전략 인스턴스 생성 (단일 정의 — 시그널 분석과 백테스트 모두 동일 인스턴스 사용)
@@ -431,22 +464,22 @@ def main():
             OBVStrategy(obv_ma_period=14, divergence_lookback=5),
             RSIOBVStrategy(oversold=40, overbought=70, obv_weight=0.7),
             MACDRSIOBVStrategy(
-                macd_fast=8,
-                macd_slow=21,
-                macd_signal=5,
-                rsi_period=9,
-                rsi_buy_threshold=55.0,
-                rsi_sell_threshold=65.0,
-                obv_ma_period=10,
+                macd_fast=8,          # 8  — fast EMA
+                macd_slow=21,         # 21 — slow EMA
+                macd_signal=3,        # 5→3: Signal 선 빠르게 → MACD Bullish 판정 더 선행
+                rsi_period=4,         # 4 9  — 작을수록 빠르게 반응
+                rsi_buy_threshold=62.0,   # 55→62: 매수 구간 확대
+                rsi_sell_threshold=80.0,  # 74→80: XRP 1분봉 RSI(9)는 추세 시 80까지 자주 도달
+                obv_ma_period=5,      # 8→5: OBV MA 빠르게 → 매수 진입 선행
             ),
-            BollingerScalpStrategy(
-                bb_period=20,
-                bb_std_mult=2.0,
-                rsi_period=9,
-                rsi_oversold=35.0,
-                rsi_overbought=65.0,
-                bb_width_threshold=0.003,
-            ),
+#            BollingerScalpStrategy(
+#                bb_period=20,
+#                bb_std_mult=2.0,
+#                rsi_period=9,
+#                rsi_oversold=35.0,
+#                rsi_overbought=65.0,
+#                bb_width_threshold=0.003,
+#            ),
         ]
 
         # 3. 각 전략 시그널 분석
@@ -456,12 +489,13 @@ def main():
         # 4. 백테스트 시뮬레이션 (위와 동일한 인스턴스 재사용 — 파라미터 불일치 원천 차단)
         summary = []  # 전략별 결과 수집
         all_trade_pnls = []
+        all_trade_events = []
         for strategy in strategies:
             print("\n\n")
             print("="*70)
             print(f"  Running Backtest: {strategy.name}")
             print("="*70)
-            perf, bhr, pnls = run_backtest_simulation(strategy, df, SYMBOL, INITIAL_BALANCE)
+            perf, bhr, pnls, events = run_backtest_simulation(strategy, df, SYMBOL, INITIAL_BALANCE)
             summary.append({
                 'name': strategy.name,
                 'trades': perf['total_trades'],
@@ -474,6 +508,7 @@ def main():
                 'buy_hold_return': bhr,
             })
             all_trade_pnls.append(pnls)
+            all_trade_events.append(events)
 
         # 5. 전략별 결과 요약
         print("\n\n")
@@ -526,6 +561,10 @@ def main():
             'trade_pnl': {
                 r['name']: pnls
                 for r, pnls in zip(summary, all_trade_pnls)
+            },
+            'trade_events': {
+                r['name']: evs
+                for r, evs in zip(summary, all_trade_events)
             },
             'current_indicators': _indicators,
         }

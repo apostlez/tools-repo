@@ -41,6 +41,14 @@ if not "%~1"=="" (
     echo.
     echo Generating candlestick chart...
     python tests\chart_from_csv.py "%~1"
+
+    echo.
+    echo Generating candlestick chart with BUY/SELL events...
+    python tests\chart_from_csv_with_event.py "%~1"
+) else (
+    echo.
+    echo Generating candlestick chart with BUY/SELL events...
+    python tests\chart_from_csv_with_event.py
 )
 
 echo.

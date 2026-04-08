@@ -187,41 +187,15 @@ RSIOBVStrategy(
 # 가상환경 활성화
 venv\Scripts\activate
 
-# 전략 테스트 실행
+# 전략 테스트 실행 (실시간 데이터 수집 후 백테스트)
 python tests\test_strategy.py
+
+# CSV 파일로 백테스트 (오프라인)
+python tests\test_strategy.py logs\raw_XRP_KRW_1m_YYMMDDHHNN.csv
+
+# 배치 파일로 실행 (테스트 + 차트 생성 자동화)
+run_strategy_test.bat [csv_path]
 ```
-
-### 전략 선택 방법
-
-`config/trading_config.py` 의 `STRATEGY_NAME` 값을 변경하거나 `.env` 파일에 환경변수를 설정:
-
-```bash
-# .env 파일
-STRATEGY_NAME=RSIOBVStrategy   # RSI+OBV 복합 전략 (기본)
-# STRATEGY_NAME=RSIStrategy
-# STRATEGY_NAME=MACDStrategy
-# STRATEGY_NAME=MovingAverageCrossStrategy
-# STRATEGY_NAME=OBVStrategy
-# STRATEGY_NAME=MACDRSIOBVStrategy   # 1분봉 최적화 전략
-
-# RSI+OBV 전용 파라미터
-OBV_WEIGHT=0.5    # OBV 가중치 (0.0 ~ 1.0)
-
-# MACD+RSI+OBV 전용 파라미터 (1분봉 최적화)
-MACD_RSI_OBV_FAST=8
-MACD_RSI_OBV_SLOW=21
-MACD_RSI_OBV_SIGNAL=5
-MACD_RSI_OBV_RSI_P=9
-MACD_RSI_OBV_BUY=55.0
-MACD_RSI_OBV_SELL=65.0
-MACD_RSI_OBV_OBV_MA=10
-```
-
-### 테스트 내용
-
-1. **시장 데이터 가져오기**: Binance Testnet에서 BTC/USDT 1시간봉 200개 조회
-2. **전략별 시그널 생성**: 각 전략(RSI, MACD, MA Cross, OBV, **RSI+OBV**)의 현재 시그널 및 지표 값 확인
-3. **백테스트 시뮬레이션**: RSI 전략으로 과거 데이터 백테스트 실행
 
 ### 출력 정보
 
@@ -230,6 +204,83 @@ MACD_RSI_OBV_OBV_MA=10
 - 💹 시장 정보 (현재가, 24시간 변동)
 - 📊 기술적 지표 값
 - 📈 백테스트 결과 (승률, 수익률, 거래 통계)
+- 💾 JSON 결과 자동 저장 (`logs/backtest_YYMMDDHHNN.json`)
+
+### 매도 보류(Defer) 로직
+
+백테스트는 실제 봇과 동일한 매도 보류 조건을 적용합니다:
+
+- 수익률 **< 0.5%** 이고 아직 보류 횟수가 3회 미만이면 매도를 보류
+- 3회 소진 또는 수익률 ≥ 0.5% 도달 시 정상 매도 실행
+- Stop Loss / Take Profit은 보류 없이 즉시 처리
+
+```
+⏸ SELL deferred (1/3) | 2026-04-07 05:16 | profit=+0.020% < 0.5% ...
+⏸ SELL deferred (2/3) | 2026-04-07 05:17 | profit=+0.031% < 0.5% ...
+🔴 SELL | 2026-04-07 05:18 | 2,021.00 KRW   ← 3회 소진 후 강제 매도
+```
+
+---
+
+## 분석 도구
+
+### analyze_params.py — 파라미터 분포 분석
+
+백테스트 전 CSV 데이터의 RSI/MACD/OBV 분포를 조사해 최적 파라미터를 선택하는 분석 스크립트.
+
+```bash
+python tests\analyze_params.py logs\raw_XRP_KRW_1m_YYMMDDHHNN.csv
+```
+
+**출력 예시:**
+```
+Candles: 400
+Buy&Hold return: +0.84%
+  OBV_MA=5,  RSI<55: 3/3=  8  2/3= 42  MACD_only= 58
+  OBV_MA=5,  RSI<60: 3/3= 10  2/3= 50  MACD_only= 58
+  OBV_MA=8,  RSI<55: 3/3=  6  2/3= 38  MACD_only= 58
+--- RSI(9) distribution ---
+  RSI < 55: 180 bars  |  RSI > 55: 220 bars
+  RSI median: 50.2    mean: 50.9
+```
+
+**활용법:**
+- `3/3` 진입 수가 0이면 `rsi_buy_threshold`를 높이거나 `obv_ma_period`를 줄임
+- RSI 분포(median/mean)로 해당 기간의 추세 강도 파악
+- `2/3`와 `3/3` 비율로 rsi_hard_cap 적절성 판단
+
+### chart_from_csv_with_event.py — BUY/SELL 이벤트 차트
+
+`test_strategy.py` 실행 후 생성된 JSON의 `trade_events`를 캔들스틱 차트에 오버레이하는 시각화 도구.
+
+```bash
+# test_strategy.py 먼저 실행 (JSON 생성)
+python tests\test_strategy.py logs\raw_XRP_KRW_1m_YYMMDDHHNN.csv
+
+# 이벤트 차트 생성 (최신 CSV/JSON 자동 선택)
+python tests\chart_from_csv_with_event.py
+
+# 파일 직접 지정
+python tests\chart_from_csv_with_event.py logs\raw_XRP_KRW_1m_YYMMDDHHNN.csv logs\backtest_YYMMDDHHNN.json
+```
+
+**차트 구성:**
+- 상단: 캔들스틱 + MA20/MA60 + BUY(▲)/SELL(▼) 마커 + 성과 요약 박스
+- 매수/매도 연결선: 수익(청록) / 손실(빨강)
+- SELL 마커에 종료가 + 수익률%  레이블 표시
+- RSI·MACD 패널에 BUY/SELL 수직 점선 오버레이
+- 전략별 PNG 자동 저장: `logs/raw_*_{전략명}_events.png`
+
+**전역 설정 (파일 상단에서 수정):**
+```python
+# tests/chart_from_csv_with_event.py
+RSI_PERIOD:  int = 14   # RSI 계산 기간
+MACD_FAST:   int = 12   # MACD 빠른 EMA
+MACD_SLOW:   int = 26   # MACD 느린 EMA
+MACD_SIGNAL: int = 9    # MACD 시그널 EMA
+```
+
+`run_strategy_test.bat`은 테스트 실행 후 `chart_from_csv_with_event.py`를 자동으로 호출합니다.
 
 ---
 
@@ -275,63 +326,61 @@ class MyCustomStrategy(BaseStrategy):
 
 ---
 
-### 6. MACD + RSI + OBV Strategy (골든 크로스 복합 전략) ⭐ Custom
+### 6. MACD + RSI + OBV Strategy (2/3 스코어링 복합 전략) ⭐ Custom
 
 > **상세 분석**: [docs/MACD_RSI_OBV_analysis.md](MACD_RSI_OBV_analysis.md)
 
 **전략 설명:**
-- MACD Golden Cross를 기본 진입 트리거로 사용하고, RSI와 OBV로 이중 필터를 적용하는 3중 복합 전략
-- 1분봉 단기 트레이딩에 최적화된 파라미터로, XRP/KRW raw 데이터에서 7시간 동안 정확히 7번의 매수 시그널을 생성함을 검증
+- MACD Bullish(상승 모멘텀 지속)를 필수 조건으로, RSI·OBV 중 1개 이상을 추가 충족하는 2/3 스코어링 매수 방식
+- 단발 Golden Cross 대신 `_is_macd_bullish()` (MACD ≥ Signal AND MACD 상승 중)로 광범위한 진입 구간 포착
+- 매도는 RSI가 과매수 임계값 **아래로 교차하는 순간**에만 발화 (지속 상태 매도가 아닌 하락 교차 감지)
 
 **시그널 조건:**
 
 | 구분 | 조건 | 설명 |
 |------|------|------|
-| **BUY** | MACD Golden Cross | MACD 라인이 Signal 라인 위로 교차 |
-| **BUY** | RSI < 55 | 과매수 아님 + 모멘텀 전환 확인 |
-| **BUY** | OBV_MA 상승 | 매수세 유입 확인 (3가지 모두 충족 시 BUY) |
-| **SELL** | RSI > 65 | 과매수 영역 진입 |
-| **SELL** | OBV_MA 하락 | 매도세 우위 (2가지 모두 충족 시 SELL) |
+| **BUY 3/3** | MACD Bullish + RSI < buy_thr + OBV_MA 상승 | strength ≥ 0.4 |
+| **BUY 2/3** | MACD Bullish + (RSI or OBV 1개 충족) | strength ≥ 0.25 × 0.4 |
+| **2/3 차단** | RSI > buy_thr × 1.15 (rsi_hard_cap) | 과매수 상태 2/3 BUY 금지 |
+| **SELL** | prev_RSI ≥ sell_thr AND curr_RSI < sell_thr | RSI 하락 교차 순간에 청산 |
 
-**파라미터 (1분봉 최적화):**
+**파라미터 (XRP/KRW 1분봉 최적화):**
 ```python
 MACDRSIOBVStrategy(
-    macd_fast=8,             # MACD 빠른 EMA (기본: 8)
-    macd_slow=21,            # MACD 느린 EMA (기본: 21)
-    macd_signal=5,           # Signal EMA (기본: 5)
-    rsi_period=9,            # RSI 기간 (기본: 9)
-    rsi_buy_threshold=55.0,  # 매수 허용 RSI 상한 (기본: 55)
-    rsi_sell_threshold=65.0, # 매도 기준 RSI (기본: 65)
-    obv_ma_period=10,        # OBV 이동평균 기간 (기본: 10)
+    macd_fast=8,              # MACD 빠른 EMA
+    macd_slow=21,             # MACD 느린 EMA
+    macd_signal=3,            # Signal EMA — 빠른 반응
+    rsi_period=4,             # RSI 기간 — 1분봉 단기 반응
+    rsi_buy_threshold=62.0,   # 매수 허용 RSI 상한
+    rsi_sell_threshold=80.0,  # 매도 교차 기준 RSI
+    obv_ma_period=5,          # OBV 이동평균 기간
 )
 ```
 
-**검증 결과 (XRP/KRW 1분봉, 2026-03-28):**
+**강도(strength) 계산:**
+```
+rsi_score  = max(0, (rsi_buy_thr - RSI) / rsi_buy_thr)   # RSI 여유도
+macd_score = |MACD_dist| / (price × 0.002)               # MACD 간격 (KRW 가격 정규화)
+full_strength = (rsi_score + macd_score) / 2
 
-| # | 시각 | 가격 | RSI | 특이사항 |
-|---|------|------|-----|---------|
-| BUY 1 | 13:05 | 2,030 | 50.0 | 대형 Surge 35분 전 선진입 |
-| BUY 2 | 14:13 | 2,046 | 54.5 | Surge 후 조정 완료 반등 |
-| BUY 3 | 15:57 | 2,050 | 44.4 | 2차 급등 후 되돌림 반등 |
-| BUY 4 | 16:42 | 2,048 | 50.0 | 중반 횡보 바닥 반등 |
-| BUY 5 | 17:44 | 2,042 | 50.0 | 하락 속 단기 바닥 |
-| BUY 6 | 18:18 | 2,041 | 50.0 | 후반 회복 구간 |
-| BUY 7 | 18:30 | 2,040 | 40.0 | 과매도 반등 |
+3/3 BUY: strength = max(0.4, full_strength)
+2/3 BUY: strength = max(0.25, full_strength × 0.4)
+```
 
 **적합한 시장:**
 - 1분봉 단기 트레이딩
 - 거래량이 뒷받침되는 모멘텀 반전 구간
-- Surge(대형 급등) 전 선진입이 필요한 경우
+- RSI가 과매수 구간에서 꺾이는 단기 고점 청산
 
 **장점:**
-- 3중 필터로 허위 시그널 최소화
-- 거래량(OBV)으로 가격 움직임의 진정성 확인
-- Golden Cross 기반으로 추세 전환 시점 포착
+- Golden Cross 단발 조건 대비 진입 기회 대폭 증가
+- rsi_hard_cap으로 과매수 구간 무조건 진입 차단
+- 매도가 추세 전환 확인 후 발화되어 조기 청산 방지
 
 **단점:**
-- RSI 임계값(55)이 보수적이어 급등 직전 구간을 간발 차로 놓칠 수 있음
-- 1분봉 전용 파라미터 — 5분봉 이상에서는 재최적화 필요
-- 연속 매도 시그널 발생 시 노이즈 유의
+- RSI 임계값 tuning이 종목/시간대별로 필요
+- 매도 조건 특성상 하락 가속 구간에서 청산 지연 가능
+- 강한 하락 추세에서는 매도 교차 전 손절매 의존 필요
 
 ---
 
