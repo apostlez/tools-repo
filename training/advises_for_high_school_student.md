@@ -93,6 +93,25 @@ GitHub Octoverse 2025 기준:
 - **신규 개발자의 AI 도구 활용**: 신규 GitHub 사용자의 약 80%가 첫 주 내에 Copilot 사용
 - 출처: [GitHub Octoverse 2025](https://github.blog/news-insights/octoverse/octoverse-a-new-developer-joins-github-every-second-as-ai-leads-typescript-to-1/)
 
+### 3-3-1. 한국 SW 개발자 현황
+
+ITSTAT ICT통계포털 (2024년 잠정) 기준:
+- **한국 ICT 산업 전체 인력**: **220만 811명** (2024년 잠정치)
+- **SW 산업 종사자**: 약 100만 명 이상 추정 (SW정책연구소 기준)
+- **연평균 SW 인력 증가율**: 약 4~5% 수준 (최근 5년)
+- **주요 특징**:
+  - 삼성전자, LG전자, 카카오, 네이버 등 대기업 중심 SW 인력 집중
+  - AI·클라우드·임베디드 분야 신규 수요 지속 증가
+  - 2025년 이후 AI 관련 채용 공고 전년 대비 급증세
+- 출처: [ITSTAT ICT통계포털](https://www.itstat.go.kr) — ICT산업 인력현황 2024 [잠정] 2,200,811명
+
+| 지표 | 수치 (2024년 잠정) | 비고 |
+|------|-------------------|------|
+| ICT 산업 전체 인력 | 220만 811명 | ITSTAT 잠정치 |
+| SW 산업 종사자 (추정) | 약 100만 명 이상 | SW정책연구소 기준 |
+| 미국 대비 비율 | 약 10% 수준 | 인구 비례로는 높은 편 |
+| 연평균 성장률 | 4~5% | 최근 5년 평균 |
+
 ### 3-4. AI 생산성 향상 통계
 
 GitHub Copilot × Accenture 연구 (2024년):
