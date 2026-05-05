@@ -147,7 +147,7 @@ def slide_cover():
     add_rect(sl, Inches(0.7), Inches(4.85), Inches(5.0), Inches(0.05), C_NEON)
     # 부제목
     add_textbox(sl, Inches(0.7), Inches(5.0), Inches(8.0), Inches(0.5),
-                "고등학생 특강  |  2026", 18, C_GRAY)
+                "건국대학교사범대학부속고등학교  |  2026", 18, C_GRAY)
     # 우측 장식 텍스트
     add_textbox(sl, W - Inches(3.8), Inches(2.0), Inches(3.3), Inches(4.0),
                 "DEVELOPER\nIN THE\nAI ERA", 28, C_HIGHLIGHT, bold=True, align=PP_ALIGN.CENTER)

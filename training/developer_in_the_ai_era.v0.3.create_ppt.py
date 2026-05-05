@@ -147,7 +147,7 @@ def slide_cover():
     add_rect(sl, Inches(0.7), Inches(4.85), Inches(5.0), Inches(0.05), C_NEON)
     # 부제목
     add_textbox(sl, Inches(0.7), Inches(5.0), Inches(8.0), Inches(0.5),
-                "고등학생 특강  |  2026", 18, C_GRAY)
+                "건국대학교사범대학부속고등학교  |  2026", 18, C_GRAY)
     # 우측 장식 텍스트
     add_textbox(sl, W - Inches(3.8), Inches(2.0), Inches(3.3), Inches(4.0),
                 "DEVELOPER\nIN THE\nAI ERA", 28, C_HIGHLIGHT, bold=True, align=PP_ALIGN.CENTER)
@@ -200,9 +200,9 @@ def slide_intro():
     add_textbox(sl, l + Inches(1.5), t + Inches(0.5), Inches(1.5), Inches(1.2),
                 "👤", 36, C_PRIMARY, align=PP_ALIGN.CENTER)
     add_textbox(sl, l + Inches(0.2), t + Inches(2.1), card_w - Inches(0.4), Inches(0.5),
-                "임베디드 소프트웨어 개발자", 14, C_NEON, bold=True, align=PP_ALIGN.CENTER)
-    add_textbox(sl, l + Inches(0.2), t + Inches(2.6), card_w - Inches(0.4), Inches(1.5),
-                "LG전자 임베디드 개발팀\n소프트웨어 경력 10년 이상\nAI 도구 도입·활용 경험 보유", 14, C_LIGHT, align=PP_ALIGN.CENTER)
+                "플랫폼 소프트웨어 개발자", 14, C_NEON, bold=True, align=PP_ALIGN.CENTER)
+    add_textbox(sl, l + Inches(0.2), t + Inches(2.6), card_w - Inches(0.4), Inches(2.0),
+                "LG전자 CTO Software Platform Lab\n2012 ~\nwebOS, ThinQ, UP가전\nAI 도구 도입·활용", 14, C_LIGHT, align=PP_ALIGN.CENTER)
     # 우측 소개 내용
     rx = l + card_w + Inches(0.4)
     rw = W - rx - Inches(0.3)
@@ -210,7 +210,7 @@ def slide_intro():
     bullets = [
         "AI가 개발자를 대체한다는 뉴스, 여러분도 들어봤나요?",
         "현직 개발자로서 실제 변화를 직접 겪고 있습니다",
-        "과장된 공포 vs 진짜 기회 — 함께 생각해 봐요",
+        "매체로 접하는 이야기 vs 현업의 목소리",
         "여러분이 미래를 선택하는 데 도움이 되길 바랍니다",
     ]
     add_bullet_box(sl, rx, t + Inches(0.6), rw, h - Inches(0.6),
@@ -242,7 +242,7 @@ def slide_problem_news():
     # 하단 질문
     add_rect(sl, l, H - Inches(1.0), w, Inches(0.65), C_HIGHLIGHT)
     add_textbox(sl, l + Inches(0.2), H - Inches(0.95), w - Inches(0.4), Inches(0.55),
-                "❓  그렇다면 앞으로 SW 개발자라는 직업은 사라질까요?",
+                "❓  그렇다면 앞으로 SW 개발자의 전망은?",
                 18, C_YELLOW, bold=True)
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -273,6 +273,11 @@ def slide_analysis_types():
         add_rect(sl, l + Inches(2.2), by + Inches(0.08), bar_fill_w, Inches(0.32), color)
         add_textbox(sl, l + Inches(2.2) + bar_fill_w + Inches(0.1), by, Inches(0.8), Inches(0.45),
                     pct, 14, color, bold=True)
+    # 좌측 하단 작은 안내 박스
+    note_y = bar_t + 5 * Inches(0.72) + Inches(0.1)
+    add_rect(sl, l, note_y, lw, Inches(0.45), C_HIGHLIGHT)
+    add_textbox(sl, l + Inches(0.15), note_y + Inches(0.08), lw - Inches(0.3), Inches(0.35),
+                "하지만 개발자는 명확한 역할 분리가 어렵다.", 12, C_YELLOW, italic=True)
     # 우측 핵심 메시지
     rx = l + lw + Inches(0.4)
     rw = W - rx - Inches(0.3)
@@ -412,29 +417,39 @@ def slide_work_change():
     draw_header(sl, "내 일상이 달라졌다", "현직 개발자가 경험한 AI 도입 전·후", section_num="05")
     l, t, w, h = content_area()
     changes = [
+        ("⌨️", "코드 작성", "95% 감소",
+         "설계·기능 명세 후\n직접 코딩하는 시간이\n거의 사라짐", C_NEON, True),
         ("📝", "문서 작성", "줄었다",
          "가장 힘든 업무였던\n코드 설명 문서를\nAI가 초안 작성", C_NEON, True),
-        ("🔬", "데이터 분석", "빨라졌다",
-         "실험 결과 정리·\n통계 분석을\nAI로 대체", C_YELLOW, True),
+        ("🔬", "자료 분석", "빨라졌다",
+         "연구개발 실험·결과\n정리·통계 분석을\nAI로 대체", C_YELLOW, True),
         ("▶️", "유튜브 시청", "줄었다",
-         "AI로 영상 요약·\n공식 문서 설명을\n즉시 받음", RGBColor(0xFF, 0x80, 0x00), True),
+         "공식 문서·영상을\nAI가 즉시 요약·\n데모 영상도 AI 제작", RGBColor(0xFF, 0x80, 0x00), True),
         ("📈", "할 일의 양", "늘었다!",
-         "1년치 계획이\n3개월 만에 완료 →\n더 많은 목표 설정", RGBColor(0xFF, 0x40, 0x80), False),
+         "1년 계획이\n3개월 만에 끝나서\n더 할 일을 찾는 중", RGBColor(0xFF, 0x40, 0x80), False),
     ]
-    card_w = (w - Inches(0.6)) / 4
+    n = len(changes)
+    gap = Inches(0.15)
+    card_w = (w - gap * (n - 1)) / n
+    card_h = h - Inches(0.8)
     for i, (icon, cat, result, desc, color, positive) in enumerate(changes):
-        cx = l + i * (card_w + Inches(0.2))
-        add_rect(sl, cx, t, card_w, h, C_ACCENT)
+        cx = l + i * (card_w + gap)
+        add_rect(sl, cx, t, card_w, card_h, C_ACCENT)
         add_rect(sl, cx, t, card_w, Inches(0.06), color)
-        add_textbox(sl, cx, t + Inches(0.2), card_w, Inches(0.65),
-                    icon, 32, C_WHITE, align=PP_ALIGN.CENTER)
-        add_textbox(sl, cx + Inches(0.1), t + Inches(0.95), card_w - Inches(0.2), Inches(0.4),
-                    cat, 14, C_GRAY, bold=False, align=PP_ALIGN.CENTER)
-        add_rect(sl, cx + Inches(0.1), t + Inches(1.45), card_w - Inches(0.2), Inches(0.42), color)
-        add_textbox(sl, cx + Inches(0.1), t + Inches(1.5), card_w - Inches(0.2), Inches(0.35),
-                    result, 15, C_PRIMARY if positive else C_WHITE, bold=True, align=PP_ALIGN.CENTER)
-        add_textbox(sl, cx + Inches(0.1), t + Inches(2.05), card_w - Inches(0.2), h - Inches(2.2),
-                    desc, 13, C_LIGHT, align=PP_ALIGN.CENTER, wrap=True)
+        add_textbox(sl, cx, t + Inches(0.2), card_w, Inches(0.6),
+                    icon, 28, C_WHITE, align=PP_ALIGN.CENTER)
+        add_textbox(sl, cx + Inches(0.05), t + Inches(0.85), card_w - Inches(0.1), Inches(0.4),
+                    cat, 13, C_GRAY, bold=False, align=PP_ALIGN.CENTER)
+        add_rect(sl, cx + Inches(0.1), t + Inches(1.32), card_w - Inches(0.2), Inches(0.42), color)
+        add_textbox(sl, cx + Inches(0.1), t + Inches(1.37), card_w - Inches(0.2), Inches(0.35),
+                    result, 13, C_PRIMARY if positive else C_WHITE, bold=True, align=PP_ALIGN.CENTER)
+        add_textbox(sl, cx + Inches(0.05), t + Inches(1.95), card_w - Inches(0.1), card_h - Inches(2.05),
+                    desc, 11, C_LIGHT, align=PP_ALIGN.CENTER, wrap=True)
+    # 하단 질문 박스
+    add_rect(sl, l, t + card_h + Inches(0.15), w, Inches(0.5), C_HIGHLIGHT)
+    add_textbox(sl, l + Inches(0.2), t + card_h + Inches(0.2), w - Inches(0.4), Inches(0.4),
+                "❓  생산성이 오를수록, 더 많은 일·더 큰 목표가 생긴다",
+                15, C_YELLOW, bold=True)
 
 # ════════════════════════════════════════════════════════════════════════════
 # 슬라이드 10 : 앞으로의 전망 — 개발자의 삶
@@ -453,10 +468,10 @@ def slide_future_dev():
                 "크게 다르지 않다 — 끊임없는 학습", 24, C_NEON, bold=True)
     add_rect(sl, l + Inches(0.2), t + Inches(1.45), lw - Inches(0.4), Inches(0.04), C_HIGHLIGHT)
     items = [
-        "새 언어·프레임워크가 나올 때마다 배워왔다 → AI 도구도 같다",
-        "전문성(도메인 지식)의 가치는 오히려 더 높아진다",
-        "AI를 '도구'로 잘 다루는 개발자가 경쟁력을 가진다",
-        "확실한 것: 전문가의 역할은 줄어들지 않는다",
+        "끊임없는 학습과 자기 계발 — AI 도구도 새 언어·프레임워크처럼 배운다",
+        "전문가의 역할은 더 커진다 — 확실한 미래",
+        "비전문가가 늘어나면서 전문가의 진입 장벽이 더 높아진다",
+        "AI 도구를 다루는 기술 자체가 하나의 능력",
     ]
     add_bullet_box(sl, l + Inches(0.2), t + Inches(1.6), lw - Inches(0.4), h - Inches(1.8),
                    items, font_size=16, text_color=C_WHITE)
@@ -473,43 +488,77 @@ def slide_future_dev():
                 "— 실리콘밸리 엔지니어링 리더", 12, C_GRAY, italic=True)
 
 # ════════════════════════════════════════════════════════════════════════════
-# 슬라이드 11 : 앞으로의 전망 — 불확실성과 나의 선택
+# 슬라이드 11 : 앞으로의 전망 ② — 미래의 불확실성
+# ════════════════════════════════════════════════════════════════════════════
+def slide_future_uncertainty():
+    sl = prs.slides.add_slide(prs.slide_layouts[6])
+    draw_header(sl, "앞으로의 전망 ② — 미래의 불확실성", section_num="06")
+    l, t, w, h = content_area()
+    cards = [
+        ("💰", "비트코인의 교훈", C_YELLOW,
+         "처음엔 '암호키 다단계 아냐?'\n지금은 디지털 금\n양자 컴퓨터가 나오면?\n아무도 모른다"),
+        ("⚖️", "정치적 영향", C_NEON,
+         "기술 도입은 효용·경제성보다\n정치적 영향이 더 큼\n의료·법률 AI 도입의\n가장 큰 걸림돌"),
+        ("⚡", "트렌드 속도", RGBColor(0xFF, 0x80, 0x00),
+         "기술 변화 속도가\n점점 빨라진다\n특정 분야에 집중하지 않으면\n따라잡기 어려움"),
+        ("🤔", "AI 신뢰성", RGBColor(0xFF, 0x40, 0x80),
+         "작고 단순한 작업은 OK\n크고 복잡한 영역에서\nAI의 처리 능력은\n아직 믿기 어려움"),
+    ]
+    n = len(cards)
+    gap = Inches(0.2)
+    card_w = (w - gap * (n - 1)) / n
+    for i, (icon, title, color, desc) in enumerate(cards):
+        cx = l + i * (card_w + gap)
+        add_rect(sl, cx, t, card_w, h, C_ACCENT)
+        add_rect(sl, cx, t, card_w, Inches(0.06), color)
+        add_textbox(sl, cx, t + Inches(0.25), card_w, Inches(0.7),
+                    icon, 32, C_WHITE, align=PP_ALIGN.CENTER)
+        add_textbox(sl, cx + Inches(0.1), t + Inches(1.05), card_w - Inches(0.2), Inches(0.55),
+                    title, 17, color, bold=True, align=PP_ALIGN.CENTER)
+        add_rect(sl, cx + Inches(0.3), t + Inches(1.65), card_w - Inches(0.6), Inches(0.04), color)
+        add_textbox(sl, cx + Inches(0.15), t + Inches(1.85), card_w - Inches(0.3), h - Inches(2.0),
+                    desc, 13, C_LIGHT, align=PP_ALIGN.CENTER, wrap=True)
+
+# ════════════════════════════════════════════════════════════════════════════
+# 슬라이드 12 : 앞으로의 전망 ③ — 나를 위한 결정과 준비
 # ════════════════════════════════════════════════════════════════════════════
 def slide_future_choice():
     sl = prs.slides.add_slide(prs.slide_layouts[6])
-    draw_header(sl, "앞으로의 전망 ② — 불확실성과 나의 선택", section_num="06")
+    draw_header(sl, "앞으로의 전망 ③ — 나를 위한 결정과 준비", section_num="06")
     l, t, w, h = content_area()
-    # 비트코인 비유
-    add_rect(sl, l, t, W - Inches(1.0), Inches(1.5), C_ACCENT)
-    add_rect(sl, l, t, Inches(0.06), Inches(1.5), C_YELLOW)
-    add_textbox(sl, l + Inches(0.3), t + Inches(0.1), W - Inches(1.5), Inches(0.5),
-                "비트코인 비유 — 미래는 항상 불확실하다", 16, C_YELLOW, bold=True)
-    add_textbox(sl, l + Inches(0.3), t + Inches(0.65), W - Inches(1.5), Inches(0.75),
-                '처음 봤을 때: "암호키를 사고파는 다단계 아냐?"  →  지금은 디지털 금\n'
-                "양자 컴퓨터가 개발되면 비트코인 가격은?  →  아무도 모른다",
-                14, C_LIGHT)
-    # 3개 카드
-    cards2 = [
-        ("🧭", "내가 원하는 것\n먼저 정하기",
-         "무엇을 공부할지는\n내가 결정한다\n남의 말에 흔들리지 말자", C_NEON),
-        ("📚", "부지런한\n정보 수집",
-         "AI 뉴스는 빠르다\n공식 문서 + AI 요약\n조합이 최강", C_YELLOW),
-        ("🔁", "학습과\n실험 반복",
-         "써보기 전엔 모른다\n작은 프로젝트로\n직접 느껴라", RGBColor(0xFF, 0x80, 0x00)),
+    # 좌측 패널 — 나를 위한 결정
+    panel_w = (w - Inches(0.4)) / 2
+    add_rect(sl, l, t, panel_w, h - Inches(0.85), C_ACCENT)
+    add_rect(sl, l, t, panel_w, Inches(0.06), C_NEON)
+    add_textbox(sl, l + Inches(0.25), t + Inches(0.2), panel_w - Inches(0.5), Inches(0.5),
+                "나를 위한 결정", 18, C_NEON, bold=True)
+    bullets_l = [
+        "내가 하고 싶은 것, 원하는 것",
+        "무엇을 공부할지는 내가 결정하는 것",
+        "남의 말·뉴스에 휩쓸리지 말 것",
     ]
-    card_w2 = (W - Inches(1.0) - Inches(0.4)) / 3
-    ct = t + Inches(1.65)
-    ch = h - Inches(1.65)
-    for i, (icon, title, desc, color) in enumerate(cards2):
-        cx = l + i * (card_w2 + Inches(0.2))
-        add_rect(sl, cx, ct, card_w2, ch, C_ACCENT)
-        add_rect(sl, cx, ct, card_w2, Inches(0.06), color)
-        add_textbox(sl, cx, ct + Inches(0.2), card_w2, Inches(0.7),
-                    icon, 32, C_WHITE, align=PP_ALIGN.CENTER)
-        add_textbox(sl, cx + Inches(0.1), ct + Inches(1.0), card_w2 - Inches(0.2), Inches(0.8),
-                    title, 15, color, bold=True, align=PP_ALIGN.CENTER, wrap=True)
-        add_textbox(sl, cx + Inches(0.1), ct + Inches(1.9), card_w2 - Inches(0.2), ch - Inches(2.1),
-                    desc, 13, C_LIGHT, align=PP_ALIGN.CENTER, wrap=True)
+    add_bullet_box(sl, l + Inches(0.25), t + Inches(0.85), panel_w - Inches(0.5), h - Inches(1.2),
+                   bullets_l, font_size=15, text_color=C_WHITE)
+    # 우측 패널 — 준비
+    rx = l + panel_w + Inches(0.4)
+    add_rect(sl, rx, t, panel_w, h - Inches(0.85), C_ACCENT)
+    add_rect(sl, rx, t, panel_w, Inches(0.06), C_YELLOW)
+    add_textbox(sl, rx + Inches(0.25), t + Inches(0.2), panel_w - Inches(0.5), Inches(0.5),
+                "불확실성에 대응하는 준비", 18, C_YELLOW, bold=True)
+    bullets_r = [
+        "학습과 부지런한 정보 수집",
+        "현상을 분석·이해하는 안목과 유연성",
+        "공식 문서 + AI 요약 조합 활용",
+        "작은 프로젝트로 직접 써보고 느껴라",
+    ]
+    add_bullet_box(sl, rx + Inches(0.25), t + Inches(0.85), panel_w - Inches(0.5), h - Inches(1.2),
+                   bullets_r, font_size=15, text_color=C_WHITE)
+    # 하단 질문
+    qy = t + h - Inches(0.75)
+    add_rect(sl, l, qy, w, Inches(0.55), C_HIGHLIGHT)
+    add_textbox(sl, l + Inches(0.2), qy + Inches(0.08), w - Inches(0.4), Inches(0.45),
+                "❓  불확실한 미래일수록, 결정의 주체는 '나' 자신이다",
+                16, C_YELLOW, bold=True)
 
 # ════════════════════════════════════════════════════════════════════════════
 # 슬라이드 12 : 마무리
@@ -560,11 +609,13 @@ slide_case_embedded()
 slide_case_security()
 slide_work_change()
 slide_future_dev()
+slide_future_uncertainty()
 slide_future_choice()
 slide_closing()
 
 # ── 저장 ───────────────────────────────────────────────────────────────────
 import os
-out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "AI시대_SW개발자의새로운역할_특강.pptx")
+out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "developer_in_the_ai_era.v0.3.pptx")
 prs.save(out_path)
 print(f"저장 완료: {out_path}")
+print(f"총 슬라이드 수: {len(prs.slides)}")
